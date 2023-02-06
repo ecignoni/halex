@@ -1,4 +1,4 @@
 
-# exhale
+# halex
 
-Excited states Hamiltonian Learning
+Hamiltonian Learning for Excited States
