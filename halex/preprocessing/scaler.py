@@ -27,7 +27,11 @@ class EquivariantStandardScaler:
                 sdim, cdim, pdim = val.shape
                 val = val.reshape(sdim * cdim, pdim)
             mean = torch.mean(val, dim=0, keepdim=True) if self.with_mean else 0.0
-            var = torch.var(val, dim=0, unbiased=True, keepdim=True) if self.with_std else 1.0
+            var = (
+                torch.var(val, dim=0, unbiased=True, keepdim=True)
+                if self.with_std
+                else 1.0
+            )
             scale = torch.sqrt(var)
 
             self.keys_.append(key)
@@ -64,14 +68,14 @@ class EquivariantStandardScaler:
         return (val * scale) + mean
 
     def _transformation(self, tmap, transform_fn):
-        if not hasattr(self, 'keys_') or not hasattr(self, 'mean_'):
-            raise RuntimeError(f'{self} is not fitted yet.')
+        if not hasattr(self, "keys_") or not hasattr(self, "mean_"):
+            raise RuntimeError(f"{self} is not fitted yet.")
 
         blocks = []
 
         for key, block in tmap:
-            if not key in self.keys_:
-                raise RuntimeError(f'{self} has no matching key for key={key}')
+            if key not in self.keys_:
+                raise RuntimeError(f"{self} has no matching key for key={key}")
 
             idx = self.keys_.index(key)
             mean = self.mean_[idx]
