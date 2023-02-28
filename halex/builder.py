@@ -12,80 +12,80 @@ class TensorBuilder:
         self._component_names = component_names
         self._property_names = property_names
 
-    def add_full_block(self, keys, samples, components, properties, data):
-        if isinstance(samples, Labels):
-            samples = samples.view(dtype=np.int32).reshape(samples.shape[0], -1)
-        samples = Labels(self._sample_names, samples)
+    #     def add_full_block(self, keys, samples, components, properties, data):
+    #         if isinstance(samples, Labels):
+    #             samples = samples.view(dtype=np.int32).reshape(samples.shape[0], -1)
+    #         samples = Labels(self._sample_names, samples)
+    #
+    #         if all([isinstance(component, Labels) for component in components]):
+    #             components = [
+    #                 component.view(dtype=np.int32).reshape(components.shape[0], -1)
+    #                 for components in components
+    #             ]
+    #
+    #         components_label = []
+    #         for names, values in zip(self._component_names, components):
+    #             components_label.append(Labels(names, values))
+    #         components = components_label
+    #
+    #         if isinstance(properties, Labels):
+    #             properties = properties.view(dtype=np.int32).reshape(
+    #                 properties.shape[0], -1
+    #             )
+    #         properties = Labels(self._property_names, properties)
+    #
+    #         block = TensorBlock(data, samples, components, properties)
+    #         self.blocks[tuple(keys)] = block
+    #         return block
 
-        if all([isinstance(component, Labels) for component in components]):
-            components = [
-                component.view(dtype=np.int32).reshape(components.shape[0], -1)
-                for components in components
-            ]
+    # def add_block(
+    #     self, keys, gradient_samples=None, *, samples=None, components, properties=None
+    # ):
+    #     if samples is None and properties is None:
+    #         raise Exception("can not have both samples & properties unset")
 
-        components_label = []
-        for names, values in zip(self._component_names, components):
-            components_label.append(Labels(names, values))
-        components = components_label
+    #     if samples is not None and properties is not None:
+    #         raise Exception("can not have both samples & properties set")
 
-        if isinstance(properties, Labels):
-            properties = properties.view(dtype=np.int32).reshape(
-                properties.shape[0], -1
-            )
-        properties = Labels(self._property_names, properties)
+    #     if samples is not None:
+    #         if isinstance(samples, Labels):
+    #             samples = samples.view(dtype=np.int32).reshape(samples.shape[0], -1)
+    #         samples = Labels(self._sample_names, samples)
 
-        block = TensorBlock(data, samples, components, properties)
-        self.blocks[tuple(keys)] = block
-        return block
+    #     if gradient_samples is not None:
+    #         if not isinstance(gradient_samples, Labels):
+    #             raise Exception("must pass gradient samples for the moment")
 
-    def add_block(
-        self, keys, gradient_samples=None, *, samples=None, components, properties=None
-    ):
-        if samples is None and properties is None:
-            raise Exception("can not have both samples & properties unset")
+    #     if all([isinstance(component, Labels) for component in components]):
+    #         components = [
+    #             component.view(dtype=np.int32).reshape(components.shape[0], -1)
+    #             for components in components
+    #         ]
 
-        if samples is not None and properties is not None:
-            raise Exception("can not have both samples & properties set")
+    #     components_label = []
+    #     for names, values in zip(self._component_names, components):
+    #         components_label.append(Labels(names, values))
+    #     components = components_label
 
-        if samples is not None:
-            if isinstance(samples, Labels):
-                samples = samples.view(dtype=np.int32).reshape(samples.shape[0], -1)
-            samples = Labels(self._sample_names, samples)
+    #     if properties is not None:
+    #         if isinstance(properties, Labels):
+    #             properties = properties.view(dtype=np.int32).reshape(
+    #                 properties.shape[0], -1
+    #             )
+    #         properties = Labels(self._property_names, properties)
 
-        if gradient_samples is not None:
-            if not isinstance(gradient_samples, Labels):
-                raise Exception("must pass gradient samples for the moment")
+    #     if properties is not None:
+    #         block = TensorBuilderPerSamples(
+    #             properties, components, self._sample_names, gradient_samples
+    #         )
 
-        if all([isinstance(component, Labels) for component in components]):
-            components = [
-                component.view(dtype=np.int32).reshape(components.shape[0], -1)
-                for components in components
-            ]
+    #     if samples is not None:
+    #         block = TensorBuilderPerProperties(
+    #             samples, components, self._property_names, gradient_samples
+    #         )
 
-        components_label = []
-        for names, values in zip(self._component_names, components):
-            components_label.append(Labels(names, values))
-        components = components_label
-
-        if properties is not None:
-            if isinstance(properties, Labels):
-                properties = properties.view(dtype=np.int32).reshape(
-                    properties.shape[0], -1
-                )
-            properties = Labels(self._property_names, properties)
-
-        if properties is not None:
-            block = TensorBuilderPerSamples(
-                properties, components, self._sample_names, gradient_samples
-            )
-
-        if samples is not None:
-            block = TensorBuilderPerProperties(
-                samples, components, self._property_names, gradient_samples
-            )
-
-        self.blocks[keys] = block
-        return block
+    #     self.blocks[keys] = block
+    #     return block
 
     def build(self):
         keys = Labels(

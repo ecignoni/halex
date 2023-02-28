@@ -24,3 +24,40 @@ def get_ao_labels(orbs, atomic_numbers):
             label = (i, symbol, ao)
             ao_labels.append(label)
     return ao_labels
+
+
+def fix_pyscf_l1(dense, frame, orbs):
+    """pyscf stores l=1 terms in a xyz order, corresponding to (m=0, 1, -1).
+    this converts into a canonical form where m is sorted as (-1, 0,1)"""
+    idx = []
+    iorb = 0
+    atoms = list(frame.numbers)
+    for atype in atoms:
+        cur = ()
+        for ia, a in enumerate(orbs[atype]):
+            n, l, m = a
+            if (n, l) != cur:
+                if l == 1:
+                    idx += [iorb + 1, iorb + 2, iorb]
+                else:
+                    idx += range(iorb, iorb + 2 * l + 1)
+                iorb += 2 * l + 1
+                cur = (n, l)
+    return dense[idx][:, idx]
+
+
+def fix_pyscf_l1_orbs(orbs):
+    orbs = orbs.copy()
+    for key in orbs:
+        new_orbs = []
+        i = 0
+        while True:
+            try:
+                n, l, m = orbs[key][i]
+            except IndexError:
+                break
+            i += 2 * l + 1
+            for m in range(-l, l + 1, 1):
+                new_orbs.append([n, l, m])
+        orbs[key] = new_orbs
+    return orbs
