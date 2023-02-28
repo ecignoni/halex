@@ -1,12 +1,11 @@
+# very exhaustive list
 symbol2atomic_number = {
     "H": 1,
     "C": 6,
     "N": 7,
     "O": 8,
 }
-
 atomic_number2symbol = {v: k for (k, v) in symbol2atomic_number.items()}
-
 
 
 def get_ao_labels(orbs, atomic_numbers):
