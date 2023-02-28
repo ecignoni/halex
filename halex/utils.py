@@ -1,3 +1,15 @@
+import pickle
+import ase
+import json
+import numpy as np
+import ase.io
+import torch
+
+import equistore
+from equistore import TensorBlock, TensorMap
+import equistore.operations as eqop
+
+
 # very exhaustive list
 symbol2atomic_number = {
     "H": 1,
@@ -61,3 +73,118 @@ def fix_pyscf_l1_orbs(orbs):
                 new_orbs.append([n, l, m])
         orbs[key] = new_orbs
     return orbs
+
+
+def load_frames(path, n_frames):
+    frames = ase.io.read(
+        path,
+        ":%d" % n_frames,
+    )
+    # why this?
+    for f in frames:
+        f.cell = [100, 100, 100]
+        f.positions += 50
+    return frames
+
+
+def load_orbs(path):
+    with open(path, "r") as handle:
+        jorbs = json.load(handle)
+        # try:
+        #     jorbs = json.loads(json.load(handle))
+        # except Exception:
+        #     jorbs = json.load(handle)
+    orbs = {}
+    zdic = {"O": 8, "C": 6, "H": 1}
+    for k in jorbs:
+        orbs[zdic[k]] = jorbs[k]
+    return orbs
+
+
+def load_hamiltonians(path, n_frames):
+    return torch.from_numpy(
+        np.load(
+            path,
+            allow_pickle=True,
+        )[:n_frames]
+    )
+
+
+def train_test_split(*elements, n_frames, train_size=0.8):
+    n_train = int(n_frames * train_size)
+    res = []
+    for elem in elements:
+        if isinstance(elem, equistore.TensorMap):
+            # train
+            res.append(
+                eqop.slice(
+                    elem,
+                    samples=equistore.Labels(
+                        names=["structure"],
+                        values=np.asarray(range(n_train), dtype=np.int32).reshape(
+                            -1, 1
+                        ),
+                    ),
+                )
+            )
+            # test
+            res.append(
+                eqop.slice(
+                    elem,
+                    samples=equistore.Labels(
+                        names=["structure"],
+                        values=np.asarray(
+                            range(n_train, n_frames), dtype=np.int32
+                        ).reshape(-1, 1),
+                    ),
+                )
+            )
+        else:
+            # train
+            res.append(elem[:n_train])
+            # test
+            res.append(elem[n_train:n_frames])
+    return tuple(res)
+
+
+def dump_dict(path, d):
+    with open(path, "wb") as handle:
+        pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def load_dict(path):
+    with open(path, "rb") as handle:
+        d = pickle.load(handle)
+    return d
+
+
+def _convert_tensormap_dtype(tmap, convert_dtype_fn):
+    blocks = []
+    for _, block in tmap:
+        values = convert_dtype_fn(block.values)
+        block = TensorBlock(
+            values=values,
+            samples=block.samples,
+            components=block.components,
+            properties=block.properties,
+        )
+        blocks.append(block)
+    return TensorMap(tmap.keys, blocks)
+
+
+def tensormap_as_torch(tmap):
+    def convert_dtype_fn(x):
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x).type(torch.float64)
+        return x
+
+    return _convert_tensormap_dtype(tmap, convert_dtype_fn)
+
+
+def tensormap_as_numpy(tmap):
+    def convert_dtype_fn(x):
+        if isinstance(x, torch.Tensor):
+            x = x.detach().numpy().copy()
+        return x
+
+    return _convert_tensormap_dtype(tmap, convert_dtype_fn)

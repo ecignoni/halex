@@ -1,7 +1,11 @@
 from .builder import TensorBuilder
 from .cg import ClebschGordanReal
+from .rascal_wrapper import RascalSphericalExpansion, RascalPairExpansion
+from .acdc_mini import acdc_standardize_keys, cg_increment
+
 import numpy as np
 from equistore import Labels, TensorBlock, TensorMap
+from equistore.io import save as equisave
 import torch
 
 
@@ -465,6 +469,82 @@ def hamiltonian_features(centers, pairs):
         ),
         blocks=blocks,
     )
+
+
+def compute_ham_features(rascal_hypers, frames, cg, lcut, saveto=None, verbose=False):
+    if verbose:
+        print("Computing |rho_i>")
+    spex = RascalSphericalExpansion(rascal_hypers)
+    rhoi = spex.compute(frames)
+
+    if verbose:
+        print("Computing |g_ij>")
+    pairs = RascalPairExpansion(rascal_hypers)
+    gij = pairs.compute(frames)
+
+    # make them compatible for cg increments...
+    rho1i = acdc_standardize_keys(rhoi)
+    rho1i = rho1i.keys_to_properties(["species_neighbor"])
+    gij = acdc_standardize_keys(gij)
+
+    if verbose:
+        print("Computing |rho^2_i>")
+    rho2i = cg_increment(
+        rho1i, rho1i, lcut=lcut, other_keys_match=["species_center"], clebsch_gordan=cg
+    )
+
+    if verbose:
+        print("Computing |rho^1_ij>")
+    rho1ij = cg_increment(
+        rho1i, gij, lcut=lcut, other_keys_match=["species_center"], clebsch_gordan=cg
+    )
+
+    if verbose:
+        print("Getting Hamiltonian features")
+    ham_feats = hamiltonian_features(rho2i, rho1ij)
+
+    if saveto is not None:
+        if verbose:
+            print(f"Saving to {saveto}")
+        equisave(saveto, ham_feats)
+
+    return ham_feats
+
+
+def drop_unused_features(feats, targs_coupled):
+    retained_keys = []
+    retained_blocks = []
+
+    for targ_key, _ in targs_coupled:
+        block_type = targ_key["block_type"]
+        ai = targ_key["a_i"]
+        li = targ_key["l_i"]
+        aj = targ_key["a_j"]
+        lj = targ_key["l_j"]
+        L = targ_key["L"]
+        inversion_sigma = (-1) ** (li + lj + L)
+
+        for feat_key, feat_block in feats:
+            cond_block = feat_key["block_type"] == block_type
+            cond_l = feat_key["spherical_harmonics_l"] == L
+            cond_sigma = feat_key["inversion_sigma"] == inversion_sigma
+            cond_cent = feat_key["species_center"] == ai
+            cond_neig = feat_key["species_neighbor"] == aj
+            cond = cond_block and cond_l and cond_sigma and cond_cent and cond_neig
+
+            if cond:
+                retained_keys.append(np.array(tuple(feat_key)))
+                retained_blocks.append(feat_block.copy())
+
+    # remove duplicates
+    _, idx = np.unique(retained_keys, axis=0, return_index=True)
+    retained_keys = np.array([retained_keys[i] for i in idx])
+    retained_blocks = [retained_blocks[i] for i in idx]
+
+    retained_keys = Labels(names=feats.keys.names, values=np.array(retained_keys))
+    trim_feats = TensorMap(keys=retained_keys, blocks=retained_blocks)
+
+    return trim_feats
 
 
 # if __name__ == "__main__":
