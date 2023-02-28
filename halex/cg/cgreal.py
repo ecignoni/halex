@@ -155,7 +155,6 @@ class ClebschGordanReal:
         for ltuple, lcomponents in decoupled.items():
             # each is a list of L terms
             for lc in lcomponents.keys():
-
                 # this is the actual matrix-valued coupled term,
                 # of shape (..., 2l1+1, 2l2+1), transforming as Y^m1_l1 Y^m2_l2
                 dec_term = lcomponents[lc]
@@ -176,7 +175,9 @@ class ClebschGordanReal:
                 ):
                     # ensure that Lterm is created on the same device as the dec_term
                     device = dec_term.device
-                    Lterm = torch.zeros(size=dec_term.shape[:-2] + (2 * L + 1,), device=device)
+                    Lterm = torch.zeros(
+                        size=dec_term.shape[:-2] + (2 * L + 1,), device=device
+                    )
                     for M in range(2 * L + 1):
                         for m1, m2, cg in self._cg[(l1, l2, L)][M]:
                             Lterm[..., M] += dec_term[..., m1, m2] * cg
@@ -195,7 +196,6 @@ class ClebschGordanReal:
         decoupled = {}
         # applies the decoupling to each entry in the dictionary
         for ltuple, lcomponents in coupled.items():
-
             # the initial pair in the key indicates the decoupled terms that generated
             # the L entries
             l1, l2 = ltuple[:2]
@@ -206,7 +206,7 @@ class ClebschGordanReal:
             device = next(iter(lcomponents.values())).device
             dec_term = torch.zeros(
                 shape
-                + (
+                + (  # noqa
                     2 * l1 + 1,
                     2 * l2 + 1,
                 ),
@@ -214,7 +214,7 @@ class ClebschGordanReal:
             )
             for L in range(max(l1, l2) - min(l1, l2), min(self._l_max, (l1 + l2)) + 1):
                 # supports missing L components, e.g. if they are zero because of symmetry
-                if not L in lcomponents:
+                if L not in lcomponents:
                     continue
                 for M in range(2 * L + 1):
                     for m1, m2, cg in self._cg[(l1, l2, L)][M]:
