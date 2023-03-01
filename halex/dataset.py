@@ -4,13 +4,22 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+# from equistore import Labels
+# from equistore import operations as eqop
+
 from .utils import load_frames, load_orbs, fix_pyscf_l1_orbs, fix_pyscf_l1
 from .operations import lowdin_orthogonalize
-from .hamiltonian import couple_blocks, dense_to_blocks
+from .hamiltonian import (
+    couple_blocks,
+    dense_to_blocks,
+    #    compute_ham_features,
+    #    drop_unused_features,
+)
 
 
-class SCFDataset(Dataset):
-    def __init__(self, frames, focks, ovlps, orbs, cg):
+class SCFData:
+    def __init__(self, frames, focks, ovlps, orbs, cg, max_frames=None):
+        self.max_frames = max_frames
         self.frames = frames
         self.orbs = orbs
         self.focks = focks
@@ -32,7 +41,10 @@ class SCFDataset(Dataset):
             self._frames = load_frames(_frames)
         else:
             self._frames = _frames
-        self.n_frames = len(self._frames)
+        self.n_frames = (
+            len(self._frames) if self.max_frames is None else self.max_frames
+        )
+        self._frames = self._frames[: self.n_frames]
 
     @property
     def orbs(self):
@@ -76,13 +88,7 @@ class SCFDataset(Dataset):
         if isinstance(_focks, str):
             _focks = torch.from_numpy(np.load(_focks))
 
-        _focks = self._ensure_torch(_focks)
-
-        if _focks.shape[0] != self.n_frames:
-            errmsg = "incompatible number of frames."
-            errmsg += f"focks = {_focks.shape[0]}, frames={self.n_frames}"
-            raise ValueError(errmsg)
-
+        _focks = self._ensure_torch(_focks)[: self.n_frames]
         self._focks = self._fix_pyscf_l1(_focks)
 
     @property
@@ -98,22 +104,19 @@ class SCFDataset(Dataset):
         if isinstance(_ovlps, str):
             _ovlps = torch.from_numpy(np.load(_ovlps))
 
-        _ovlps = self._ensure_torch(_ovlps)
+        _ovlps = self._ensure_torch(_ovlps)[: self.n_frames]
 
         # check that the basis is normalized
         diag = torch.diagonal(_ovlps, dim1=1, dim2=2).detach().cpu().numpy()
         if not np.allclose(diag, 1):
             warnings.warn("AO basis is not normalized. Be careful what you do.")
 
-        if _ovlps.shape[0] != self.n_frames:
-            errmsg = "incompatible number of frames."
-            errmsg += f"ovlps = {_ovlps.shape[0]}, frames={self.n_frames}"
-            raise ValueError(errmsg)
-
         self._ovlps = self._fix_pyscf_l1(_ovlps)
 
-    def __len__(self):
-        return self.n_frames
 
-    def __getitem__(self, idx):
-        raise NotImplementedError
+class InMemoryDataset(Dataset):
+    raise NotImplementedError
+
+
+class LazyDataset(Dataset):
+    raise NotImplementedError
