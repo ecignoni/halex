@@ -38,54 +38,54 @@ class TensorBuilder:
     #         self.blocks[tuple(keys)] = block
     #         return block
 
-    # def add_block(
-    #     self, keys, gradient_samples=None, *, samples=None, components, properties=None
-    # ):
-    #     if samples is None and properties is None:
-    #         raise Exception("can not have both samples & properties unset")
+    def add_block(  # noqa: C901
+        self, keys, gradient_samples=None, *, samples=None, components, properties=None
+    ):
+        if samples is None and properties is None:
+            raise Exception("can not have both samples & properties unset")
 
-    #     if samples is not None and properties is not None:
-    #         raise Exception("can not have both samples & properties set")
+        if samples is not None and properties is not None:
+            raise Exception("can not have both samples & properties set")
 
-    #     if samples is not None:
-    #         if isinstance(samples, Labels):
-    #             samples = samples.view(dtype=np.int32).reshape(samples.shape[0], -1)
-    #         samples = Labels(self._sample_names, samples)
+        if samples is not None:
+            if isinstance(samples, Labels):
+                samples = samples.view(dtype=np.int32).reshape(samples.shape[0], -1)
+            samples = Labels(self._sample_names, samples)
 
-    #     if gradient_samples is not None:
-    #         if not isinstance(gradient_samples, Labels):
-    #             raise Exception("must pass gradient samples for the moment")
+        if gradient_samples is not None:
+            if not isinstance(gradient_samples, Labels):
+                raise Exception("must pass gradient samples for the moment")
 
-    #     if all([isinstance(component, Labels) for component in components]):
-    #         components = [
-    #             component.view(dtype=np.int32).reshape(components.shape[0], -1)
-    #             for components in components
-    #         ]
+        if all([isinstance(component, Labels) for component in components]):
+            components = [
+                component.view(dtype=np.int32).reshape(components.shape[0], -1)
+                for component in components
+            ]
 
-    #     components_label = []
-    #     for names, values in zip(self._component_names, components):
-    #         components_label.append(Labels(names, values))
-    #     components = components_label
+        components_label = []
+        for names, values in zip(self._component_names, components):
+            components_label.append(Labels(names, values))
+        components = components_label
 
-    #     if properties is not None:
-    #         if isinstance(properties, Labels):
-    #             properties = properties.view(dtype=np.int32).reshape(
-    #                 properties.shape[0], -1
-    #             )
-    #         properties = Labels(self._property_names, properties)
+        if properties is not None:
+            if isinstance(properties, Labels):
+                properties = properties.view(dtype=np.int32).reshape(
+                    properties.shape[0], -1
+                )
+            properties = Labels(self._property_names, properties)
 
-    #     if properties is not None:
-    #         block = TensorBuilderPerSamples(
-    #             properties, components, self._sample_names, gradient_samples
-    #         )
+        if properties is not None:
+            block = TensorBuilderPerSamples(
+                properties, components, self._sample_names, gradient_samples
+            )
 
-    #     if samples is not None:
-    #         block = TensorBuilderPerProperties(
-    #             samples, components, self._property_names, gradient_samples
-    #         )
+        if samples is not None:
+            block = TensorBuilderPerProperties(
+                samples, components, self._property_names, gradient_samples
+            )
 
-    #     self.blocks[keys] = block
-    #     return block
+        self.blocks[keys] = block
+        return block
 
     def build(self):
         keys = Labels(

@@ -1,7 +1,7 @@
 import numpy as np
 import re
 from equistore import Labels, TensorBlock, TensorMap
-from utils.clebsh_gordan import ClebschGordanReal
+from .rotations import ClebschGordanReal
 
 
 def _remove_suffix(names, new_suffix=""):
