@@ -75,10 +75,10 @@ def fix_pyscf_l1_orbs(orbs):
     return orbs
 
 
-def load_frames(path, n_frames):
+def load_frames(path, n_frames=None):
     frames = ase.io.read(
         path,
-        ":%d" % n_frames,
+        ":%d" % n_frames if n_frames is not None else ":",
     )
     # why this?
     for f in frames:
