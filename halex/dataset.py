@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import Dict, List, Union
+
 import warnings
 
 import numpy as np
@@ -18,7 +21,15 @@ from .hamiltonian import (
 
 
 class SCFData:
-    def __init__(self, frames, focks, ovlps, orbs, cg, max_frames=None):
+    def __init__(
+        self,
+        frames: Union[str, List[Atoms]],  # noqa
+        focks: Union[str, torch.Tensor, np.ndarray],
+        ovlps: Union[str, torch.Tensor, np.ndarray],
+        orbs: Union[str, Dict[int, List]],
+        cg: "ClebshGordanReal",  # noqa
+        max_frames: int = None,
+    ) -> None:
         self.max_frames = max_frames
         self.frames = frames
         self.orbs = orbs
