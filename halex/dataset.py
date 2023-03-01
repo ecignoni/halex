@@ -126,8 +126,10 @@ class SCFData:
 
 
 class InMemoryDataset(Dataset):
-    raise NotImplementedError
+    def __init__(self):
+        raise NotImplementedError
 
 
 class LazyDataset(Dataset):
-    raise NotImplementedError
+    def __init__(self):
+        raise NotImplementedError
