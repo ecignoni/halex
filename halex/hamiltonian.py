@@ -1,5 +1,5 @@
 from .builder import TensorBuilder
-from .cg import ClebschGordanReal
+from .rotations import ClebschGordanReal
 from .rascal_wrapper import RascalSphericalExpansion, RascalPairExpansion
 from .acdc_mini import acdc_standardize_keys, cg_increment
 
