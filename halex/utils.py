@@ -101,15 +101,6 @@ def load_orbs(path):
     return orbs
 
 
-def load_hamiltonians(path, n_frames):
-    return torch.from_numpy(
-        np.load(
-            path,
-            allow_pickle=True,
-        )[:n_frames]
-    )
-
-
 def train_test_split(*elements, n_frames, train_size=0.8):
     n_train = int(n_frames * train_size)
     res = []
