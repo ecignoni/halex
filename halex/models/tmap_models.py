@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict
 
 import os
 from collections import defaultdict
@@ -6,36 +7,22 @@ from collections import defaultdict
 import numpy as np
 import torch
 
+from sklearn.linear_model import Ridge
+
 from equistore import Labels, TensorBlock, TensorMap
 
-
-class RidgeBlockModel(torch.nn.Module):
-    def __init__(
-        self, in_features: int, out_features: int, bias: bool = False, alpha: int = 1.0
-    ) -> None:
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.bias = bias
-        self.alpha = alpha
-        self.layer = torch.nn.Linear(
-            in_features=in_features, out_features=out_features, bias=bias
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.layer(x)
-
-    def regularization_loss(self, pred: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        # normalize by the number of samples
-        return (
-            self.alpha
-            * torch.squeeze(self.layer.weight.T @ self.layer.weight)
-            / pred.shape[0]
-        )
+from .block_models import RidgeBlockModel
 
 
 class RidgeModel(torch.nn.Module):
-    def __init__(self, coupled_tmap, features, alpha=1.0, dump_dir="", bias=False):
+    def __init__(
+        self,
+        coupled_tmap: TensorMap,
+        features: TensorMap,
+        alpha: float = 1.0,
+        dump_dir: str = "",
+        bias: bool = False,
+    ) -> None:
         super().__init__()
         self.alpha = alpha
         self.dump_dir = dump_dir
@@ -43,8 +30,8 @@ class RidgeModel(torch.nn.Module):
         self._setup_block_models(coupled_tmap, features)
         self.history = self.reset_history()
 
-    def get_feature_block(self, features, idx):
-        block_type, ai, ni, li, aj, nj, lj, L = idx
+    def get_feature_block(self, features: TensorMap, key: Labels) -> TensorBlock:
+        block_type, ai, ni, li, aj, nj, lj, L = key
         inversion_sigma = (-1) ** (li + lj + L)
         block = features.block(
             block_type=block_type,
@@ -55,7 +42,7 @@ class RidgeModel(torch.nn.Module):
         )
         return block
 
-    def _setup_block_models(self, coupled_tmap, features):
+    def _setup_block_models(self, coupled_tmap: TensorMap, features: TensorMap) -> None:
         components = []
         properties = Labels(["values"], np.asarray([[0]], dtype=np.int32))
         models = []
@@ -73,20 +60,20 @@ class RidgeModel(torch.nn.Module):
         self.predict_properties = properties
         self.models = torch.nn.ModuleList(models)
 
-    def reset_history(self):
+    def reset_history(self) -> None:
         self.history = defaultdict(list)
 
-    def update_history(self, losses):
+    def update_history(self, losses: Dict[str, float]) -> None:
         for loss_name, loss_value in losses.items():
             self.history[loss_name].append(loss_value)
 
-    def dump_state(self):
+    def dump_state(self) -> None:
         history_path = os.path.join(self.dump_dir, "history.npz")
         state_dict_path = os.path.join(self.dump_dir, "model_state_dict.pth")
         np.savez(history_path, **self.history)
         torch.save(self.state_dict(), state_dict_path)
 
-    def forward(self, features):
+    def forward(self, features: TensorMap) -> TensorMap:
         pred_blocks = []
         for key, components, model in zip(
             self.predict_keys, self.predict_components, self.models
@@ -107,3 +94,21 @@ class RidgeModel(torch.nn.Module):
             pred_blocks.append(pred_block)
         pred_tmap = TensorMap(self.predict_keys, pred_blocks)
         return pred_tmap
+
+    def fit_ridge_analytical(self, features: TensorMap, targets: TensorMap) -> None:
+        for key, model in zip(self.predict_keys, self.models):
+            feat_block = self.get_feature_block(features, key)
+            targ_block = targets[key]
+
+            x = np.array(feat_block.values.reshape(-1, feat_block.values.shape[2]))
+            y = np.array(targ_block.values.reshape(-1, 1))
+
+            ridge = Ridge(alpha=self.alpha, fit_intercept=self.bias).fit(x, y)
+
+            model.layer.weight = torch.nn.Parameter(
+                torch.from_numpy(ridge.coef_.copy().astype(np.float64))
+            )
+            if self.bias:
+                model.layer.bias = torch.nn.Parameter(
+                    torch.from_numpy(ridge.intercept_.copy().astype(np.float64))
+                )
