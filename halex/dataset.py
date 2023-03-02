@@ -7,16 +7,14 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-# from equistore import Labels
-# from equistore import operations as eqop
+from equistore import Labels, TensorMap
+from equistore import operations as eqop
 
 from .utils import load_frames, load_orbs, fix_pyscf_l1_orbs, fix_pyscf_l1
 from .operations import lowdin_orthogonalize
 from .hamiltonian import (
     couple_blocks,
     dense_to_blocks,
-    #    compute_ham_features,
-    #    drop_unused_features,
 )
 
 
@@ -126,10 +124,97 @@ class SCFData:
 
 
 class InMemoryDataset(Dataset):
-    def __init__(self):
-        raise NotImplementedError
+    def __init__(self, n_samples, *data):
+        self.n_samples = n_samples
+        self.data = data
+        self._setup_slicing_fns()
+
+    def _setup_slicing_fns(self):
+        fns = []
+        for d in self.data:
+            if isinstance(d, list):
+                fns.append(self.slice_list)
+            elif isinstance(d, torch.Tensor):
+                fns.append(self.slice_tensor)
+            elif isinstance(d, TensorMap):
+                fns.append(self.slice_tmap)
+            else:
+                raise ValueError(f"one element of data has a wrong type: {type(d)}")
+        self._slicing_fns = fns
+
+    def slice_list(self, llist, indices):
+        return [llist[i] for i in indices]
+
+    def slice_tensor(self, tensor, indices):
+        return tensor[indices]
+
+    def slice_tmap(self, tmap, indices):
+        return eqop.slice(
+            tmap, samples=Labels(names=["structure"], values=indices.reshape(-1, 1))
+        )
+
+    def get_indices(self, batch_size):
+        indices = torch.arange(self.n_samples)
+        batches = [
+            indices[i * batch_size : (i + 1) * batch_size]
+            for i in range(self.n_samples // batch_size)
+        ]
+        if batches[-1][-1] != indices[-1]:
+            n = int(batches[-1][-1])
+            batches += [indices[n + 1 :]]
+        return batches
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        idx = np.atleast_1d(idx)
+        out = []
+        for slicing_fn, d in zip(self._slicing_fns, self.data):
+            out.append(slicing_fn(d, indices=idx))
+        return tuple(out)
 
 
 class LazyDataset(Dataset):
     def __init__(self):
         raise NotImplementedError
+
+
+# I started writing these functions to support using a torch DataLoader
+# with the InMemoryDataset. Quit because I think it would become so slow
+# to first call __getitem__ many times and then collating everything at
+# the end, especially because I don't think there is a fast way to
+# concatenate tensorblocks
+#
+#     def _setup_collate_fn(self):
+#         concat_fns = []
+#         for d in self.data:
+#             if isinstance(d, list):
+#                 concat_fns.append(self.concat_lists)
+#             elif isinstance(d, torch.Tensor):
+#                 concat_fns.append(self.concat_tensors)
+#             elif isinstance(d, TensorMap):
+#                 concat_fns.append(self.concat_tmaps)
+#             else:
+#                 raise ValueError(f'one element of data has a wrong type: {type(d)}')
+
+#         def collate_fn(self, data):
+#             pass
+
+#     def concat_lists(self, lists):
+#         return [elem for llist in lists for elem in llist]
+
+#     def concat_tensors(self, tensors):
+#         return torch.concatenate(tensors)
+
+#     def concat_tmaps(self, tmaps):
+#         blocks = []
+#         for key in tmaps[0].keys:
+#             values = torch.stack([tmap.block(key).values for tmap in tmaps])
+#             blocks.append(TensorBlock(
+#                 values=values,
+#                 samples=tmaps[0][key].samples,
+#                 components=tmaps[0][key].components,
+#                 properties=tmaps[0][key].properties
+#             ))
+#         return TensorMap(keys=tmaps[0].keys, blocks=blocks)
