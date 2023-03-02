@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union, Tuple
+from typing import Dict, List, Union, Tuple, Any
 
 import warnings
 
@@ -123,6 +123,20 @@ class SCFData:
         self._ovlps = self._fix_pyscf_l1(_ovlps)
 
 
+def slice_list(llist: List, indices: np.ndarray) -> List:
+    return [llist[i] for i in indices]
+
+
+def slice_tensor(tensor: torch.Tensor, indices: np.ndarray) -> torch.Tensor:
+    return tensor[indices]
+
+
+def slice_tmap(tmap: TensorMap, indices: np.ndarray) -> TensorMap:
+    return eqop.slice(
+        tmap, samples=Labels(names=["structure"], values=indices.reshape(-1, 1))
+    )
+
+
 class InMemoryDataset(Dataset):
     def __init__(
         self, n_samples: int, *data: List[Union[List, torch.Tensor, TensorMap]]
@@ -135,25 +149,14 @@ class InMemoryDataset(Dataset):
         fns = []
         for d in self.data:
             if isinstance(d, list):
-                fns.append(self.slice_list)
+                fns.append(slice_list)
             elif isinstance(d, torch.Tensor):
-                fns.append(self.slice_tensor)
+                fns.append(slice_tensor)
             elif isinstance(d, TensorMap):
-                fns.append(self.slice_tmap)
+                fns.append(slice_tmap)
             else:
                 raise ValueError(f"one element of data has a wrong type: {type(d)}")
         self._slicing_fns = fns
-
-    def slice_list(self, llist: List, indices: np.ndarray) -> List:
-        return [llist[i] for i in indices]
-
-    def slice_tensor(self, tensor: torch.Tensor, indices: np.ndarray) -> torch.Tensor:
-        return tensor[indices]
-
-    def slice_tmap(self, tmap: TensorMap, indices: np.ndarray) -> TensorMap:
-        return eqop.slice(
-            tmap, samples=Labels(names=["structure"], values=indices.reshape(-1, 1))
-        )
 
     def get_indices(self, batch_size: int) -> List[torch.Tensor]:
         indices = torch.arange(self.n_samples)
@@ -187,33 +190,22 @@ class BatchedMemoryDataset(Dataset):
             setattr(self, key, value)
         self._setup_batches(data)
 
-    def _setup_batches(self, data):
+    def _setup_batches(self, data: List[Any]) -> None:
         indices = self.get_indices(self.batch_size)
         batches = []
         for idx in indices:
             batch = []
             for d in data:
                 if isinstance(d, list):
-                    batch.append(self.slice_list(d, indices=idx))
+                    batch.append(slice_list(d, indices=idx))
                 elif isinstance(d, torch.Tensor):
-                    batch.append(self.slice_tensor(d, indices=idx))
+                    batch.append(slice_tensor(d, indices=idx))
                 elif isinstance(d, TensorMap):
-                    batch.append(self.slice_tmap(d, indices=idx))
+                    batch.append(slice_tmap(d, indices=idx))
             batches.append(tuple(batch))
         self.batch_indices = indices
         self.n_batches = len(indices)
         self.batches = batches
-
-    def slice_list(self, llist: List, indices: np.ndarray) -> List:
-        return [llist[i] for i in indices]
-
-    def slice_tensor(self, tensor: torch.Tensor, indices: np.ndarray) -> torch.Tensor:
-        return tensor[indices]
-
-    def slice_tmap(self, tmap: TensorMap, indices: np.ndarray) -> TensorMap:
-        return eqop.slice(
-            tmap, samples=Labels(names=["structure"], values=indices.reshape(-1, 1))
-        )
 
     def get_indices(self, batch_size: int) -> List[torch.Tensor]:
         indices = torch.arange(self.n_samples)
@@ -229,52 +221,10 @@ class BatchedMemoryDataset(Dataset):
     def __len__(self):
         return self.n_batches
 
-    def __getitem__(
-        self, idx: Union[int, torch.Tensor, List[int], np.ndarray]
-    ) -> Tuple:
+    def __getitem__(self, idx: int) -> Tuple:
         return self.batches[idx]
 
 
 class LazyDataset(Dataset):
     def __init__(self):
         raise NotImplementedError
-
-
-# I started writing these functions to support using a torch DataLoader
-# with the InMemoryDataset. Quit because I think it would become so slow
-# to first call __getitem__ many times and then collating everything at
-# the end, especially because I don't think there is a fast way to
-# concatenate tensorblocks
-#
-#     def _setup_collate_fn(self):
-#         concat_fns = []
-#         for d in self.data:
-#             if isinstance(d, list):
-#                 concat_fns.append(self.concat_lists)
-#             elif isinstance(d, torch.Tensor):
-#                 concat_fns.append(self.concat_tensors)
-#             elif isinstance(d, TensorMap):
-#                 concat_fns.append(self.concat_tmaps)
-#             else:
-#                 raise ValueError(f'one element of data has a wrong type: {type(d)}')
-
-#         def collate_fn(self, data):
-#             pass
-
-#     def concat_lists(self, lists):
-#         return [elem for llist in lists for elem in llist]
-
-#     def concat_tensors(self, tensors):
-#         return torch.concatenate(tensors)
-
-#     def concat_tmaps(self, tmaps):
-#         blocks = []
-#         for key in tmaps[0].keys:
-#             values = torch.stack([tmap.block(key).values for tmap in tmaps])
-#             blocks.append(TensorBlock(
-#                 values=values,
-#                 samples=tmaps[0][key].samples,
-#                 components=tmaps[0][key].components,
-#                 properties=tmaps[0][key].properties
-#             ))
-#         return TensorMap(keys=tmaps[0].keys, blocks=blocks)
