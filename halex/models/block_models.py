@@ -19,7 +19,7 @@ class RidgeBlockModel(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layer(x)
 
-    def regularization_loss(self, pred: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def regularization_loss(self, pred: torch.Tensor) -> torch.Tensor:
         # normalize by the number of samples
         return (
             self.alpha

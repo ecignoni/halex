@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict, List, Any, Tuple
 
 from collections import defaultdict
 from .tmap_models import RidgeModel
@@ -10,6 +11,11 @@ import torch
 
 from tqdm import tqdm
 
+from equistore import TensorMap
+
+Dataset = Any
+Atoms = Any
+
 
 class RidgeOnEnergiesAndLowdin(RidgeModel):
     def __init__(self, *args, **kwargs):
@@ -17,15 +23,14 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
 
     def loss_fn(
         self,
-        focks,
-        pred_blocks,
-        frames,
-        eigvals,
-        lowdinq,
-        orbs,
-        ao_labels,
-        nelec_dict,
-    ):
+        pred_blocks: TensorMap,
+        frames: List[Atoms],
+        eigvals: torch.Tensor,
+        lowdinq: torch.Tensor,
+        orbs: Dict[int, List],
+        ao_labels: List[int],
+        nelec_dict: Dict[str, float],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         pred_focks = torch.stack(
             blocks_to_dense(decouple_blocks(pred_blocks), frames, orbs)
         )
@@ -41,13 +46,13 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
 
     def fit(
         self,
-        train_dataset,
-        epochs=1000,
-        batch_size=64,
-        optim_kwargs=dict(),
-        verbose=10,
-        dump=10,
-    ):
+        train_dataset: Dataset,
+        epochs: int = 1000,
+        batch_size: int = 64,
+        optim_kwargs: Dict[str, Any] = dict(),
+        verbose: int = 10,
+        dump: int = 10,
+    ) -> Self:  # noqa
         optimizer = torch.optim.Adam(self.parameters(), **optim_kwargs)
 
         batch_indices = train_dataset.get_indices(batch_size=batch_size)
@@ -56,14 +61,13 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
         for epoch in iterator:
             losses = defaultdict(list)
             for idx in batch_indices:
-                x, y, frames, eigvals, lowdinq = train_dataset[idx]
+                x, frames, eigvals, lowdinq = train_dataset[idx]
 
                 optimizer.zero_grad()
                 pred = self(x)
 
                 # loss + regularization
                 loss, eig_loss, low_loss = self.loss_fn(
-                    focks=y,
                     pred_blocks=pred,
                     frames=frames,
                     eigvals=eigvals,
@@ -73,7 +77,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                     nelec_dict=train_dataset.nelec_dict,
                 )
                 for model in self.models:
-                    loss += model.regularization_loss(y=y, pred=pred)
+                    loss += model.regularization_loss(pred=pred)
 
                 loss.backward()
                 optimizer.step()
@@ -100,3 +104,5 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
 
                 if epoch % dump == 0:
                     self.dump_state()
+
+            return self
