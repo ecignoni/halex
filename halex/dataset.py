@@ -1,8 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Union, Tuple, Any
 
-import warnings
-
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -10,12 +8,20 @@ from torch.utils.data import Dataset
 from equistore import Labels, TensorMap
 from equistore import operations as eqop
 
-from .utils import load_frames, load_orbs, fix_pyscf_l1_orbs, fix_pyscf_l1
+from .utils import (
+    load_frames,
+    load_orbs,
+    fix_pyscf_l1_orbs,
+    fix_pyscf_l1,
+    get_ao_labels,
+    atomic_number2symbol,
+)
 from .operations import lowdin_orthogonalize
 from .hamiltonian import (
     couple_blocks,
     dense_to_blocks,
 )
+from .popan import batched_orthogonal_lowdin_population
 
 
 class SCFData:
@@ -27,6 +33,7 @@ class SCFData:
         orbs: Union[str, Dict[int, List]],
         cg: "ClebshGordanReal",  # noqa
         max_frames: int = None,
+        nelec_dict: Dict[str, float] = None,
     ) -> None:
         self.max_frames = max_frames
         self.frames = frames
@@ -34,10 +41,19 @@ class SCFData:
         self.focks = focks
         self.ovlps = ovlps
         self.cg = cg
+        self.nelec_dict = nelec_dict
 
         self.focks_orth = lowdin_orthogonalize(self.focks, self.ovlps)
         self.focks_orth_tmap = dense_to_blocks(self.focks_orth, self.frames, self.orbs)
         self.focks_orth_tmap_coupled = couple_blocks(self.focks_orth_tmap, cg=self.cg)
+
+        self.ao_labels = get_ao_labels(self.orbs, self.frames[0].numbers)
+        self.mo_energy, _ = torch.linalg.eigh(self.focks_orth)
+        self.lowdin_charges, _ = batched_orthogonal_lowdin_population(
+            focks_orth=self.focks_orth,
+            nelec_dict=self.nelec_dict,
+            ao_labels=self.ao_labels,
+        )
 
     @property
     def frames(self):
@@ -118,9 +134,22 @@ class SCFData:
         # check that the basis is normalized
         diag = torch.diagonal(_ovlps, dim1=1, dim2=2).detach().cpu().numpy()
         if not np.allclose(diag, 1):
-            warnings.warn("AO basis is not normalized. Be careful what you do.")
+            raise ValueError("AO basis is not normalized.")
 
         self._ovlps = self._fix_pyscf_l1(_ovlps)
+
+    @property
+    def nelec_dict(self):
+        return self._nelec_dict
+
+    @nelec_dict.setter
+    def nelec_dict(self, _nelec_dict):
+        assert hasattr(self, "frames")
+        if _nelec_dict is None:
+            _nelec_dict = {
+                atomic_number2symbol[n]: float(n) for n in self.frames[0].numbers
+            }
+        self._nelec_dict = _nelec_dict
 
 
 def slice_list(llist: List, indices: np.ndarray) -> List:
