@@ -48,19 +48,16 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
         self,
         train_dataset: Dataset,
         epochs: int = 1000,
-        batch_size: int = 64,
         optim_kwargs: Dict[str, Any] = dict(),
         verbose: int = 10,
         dump: int = 10,
     ) -> Self:  # noqa
         optimizer = torch.optim.Adam(self.parameters(), **optim_kwargs)
 
-        batch_indices = train_dataset.get_indices(batch_size=batch_size)
-
         iterator = tqdm(range(epochs), ncols=120)
         for epoch in iterator:
             losses = defaultdict(list)
-            for idx in batch_indices:
+            for idx in range(len(train_dataset)):
                 x, frames, eigvals, lowdinq = train_dataset[idx]
 
                 optimizer.zero_grad()

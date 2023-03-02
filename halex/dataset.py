@@ -183,7 +183,9 @@ class InMemoryDataset(Dataset):
 
 
 class BatchedMemoryDataset(Dataset):
-    def __init__(self, n_samples, *data, batch_size=64, **metadata):
+    def __init__(
+        self, n_samples: int, *data: Any, batch_size: int = 64, **metadata: Any
+    ) -> None:
         self.n_samples = n_samples
         self.batch_size = batch_size
         for key, value in metadata.items():
