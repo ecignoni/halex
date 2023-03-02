@@ -179,6 +179,62 @@ class InMemoryDataset(Dataset):
         return tuple(out)
 
 
+class BatchedMemoryDataset(Dataset):
+    def __init__(self, n_samples, *data, batch_size=64, **metadata):
+        self.n_samples = n_samples
+        self.batch_size = batch_size
+        for key, value in metadata.items():
+            setattr(self, key, value)
+        self._setup_batches(data)
+
+    def _setup_batches(self, data):
+        indices = self.get_indices(self.batch_size)
+        batches = []
+        for idx in indices:
+            batch = []
+            for d in data:
+                if isinstance(d, list):
+                    batch.append(self.slice_list(d, indices=idx))
+                elif isinstance(d, torch.Tensor):
+                    batch.append(self.slice_tensor(d, indices=idx))
+                elif isinstance(d, TensorMap):
+                    batch.append(self.slice_tmap(d, indices=idx))
+            batches.append(tuple(batch))
+        self.batch_indices = indices
+        self.n_batches = len(indices)
+        self.batches = batches
+
+    def slice_list(self, llist: List, indices: np.ndarray) -> List:
+        return [llist[i] for i in indices]
+
+    def slice_tensor(self, tensor: torch.Tensor, indices: np.ndarray) -> torch.Tensor:
+        return tensor[indices]
+
+    def slice_tmap(self, tmap: TensorMap, indices: np.ndarray) -> TensorMap:
+        return eqop.slice(
+            tmap, samples=Labels(names=["structure"], values=indices.reshape(-1, 1))
+        )
+
+    def get_indices(self, batch_size: int) -> List[torch.Tensor]:
+        indices = torch.arange(self.n_samples)
+        batches = [
+            indices[i * batch_size : (i + 1) * batch_size]
+            for i in range(self.n_samples // batch_size)
+        ]
+        if batches[-1][-1] != indices[-1]:
+            n = int(batches[-1][-1])
+            batches += [indices[n + 1 :]]
+        return batches
+
+    def __len__(self):
+        return self.n_batches
+
+    def __getitem__(
+        self, idx: Union[int, torch.Tensor, List[int], np.ndarray]
+    ) -> Tuple:
+        return self.batches[idx]
+
+
 class LazyDataset(Dataset):
     def __init__(self):
         raise NotImplementedError
