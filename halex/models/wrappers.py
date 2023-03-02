@@ -73,8 +73,8 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                     ao_labels=train_dataset.ao_labels,
                     nelec_dict=train_dataset.nelec_dict,
                 )
-                for model in self.models:
-                    loss += model.regularization_loss(pred=pred)
+                # for model in self.models:
+                #     loss += model.regularization_loss(pred=pred)
 
                 loss.backward()
                 optimizer.step()
@@ -102,4 +102,4 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                 if epoch % dump == 0:
                     self.dump_state()
 
-            return self
+        return self

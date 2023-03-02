@@ -201,7 +201,10 @@ def slice_tensor(tensor: torch.Tensor, indices: np.ndarray) -> torch.Tensor:
 
 def slice_tmap(tmap: TensorMap, indices: np.ndarray) -> TensorMap:
     return eqop.slice(
-        tmap, samples=Labels(names=["structure"], values=indices.reshape(-1, 1))
+        tmap,
+        samples=Labels(
+            names=["structure"], values=np.atleast_1d(indices).reshape(-1, 1)
+        ),
     )
 
 

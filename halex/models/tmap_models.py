@@ -28,7 +28,7 @@ class RidgeModel(torch.nn.Module):
         self.dump_dir = dump_dir
         self.bias = bias
         self._setup_block_models(coupled_tmap, features)
-        self.history = self.reset_history()
+        self.reset_history()
 
     def get_feature_block(self, features: TensorMap, key: Labels) -> TensorBlock:
         block_type, ai, ni, li, aj, nj, lj, L = key
