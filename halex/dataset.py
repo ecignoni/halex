@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Tuple
 
 import warnings
 
@@ -124,7 +124,9 @@ class SCFData:
 
 
 class InMemoryDataset(Dataset):
-    def __init__(self, n_samples, *data):
+    def __init__(
+        self, n_samples: int, *data: List[Union[List, torch.Tensor, TensorMap]]
+    ) -> None:
         self.n_samples = n_samples
         self.data = data
         self._setup_slicing_fns()
@@ -142,18 +144,18 @@ class InMemoryDataset(Dataset):
                 raise ValueError(f"one element of data has a wrong type: {type(d)}")
         self._slicing_fns = fns
 
-    def slice_list(self, llist, indices):
+    def slice_list(self, llist: List, indices: np.ndarray) -> List:
         return [llist[i] for i in indices]
 
-    def slice_tensor(self, tensor, indices):
+    def slice_tensor(self, tensor: torch.Tensor, indices: np.ndarray) -> torch.Tensor:
         return tensor[indices]
 
-    def slice_tmap(self, tmap, indices):
+    def slice_tmap(self, tmap: TensorMap, indices: np.ndarray) -> TensorMap:
         return eqop.slice(
             tmap, samples=Labels(names=["structure"], values=indices.reshape(-1, 1))
         )
 
-    def get_indices(self, batch_size):
+    def get_indices(self, batch_size: int) -> List[torch.Tensor]:
         indices = torch.arange(self.n_samples)
         batches = [
             indices[i * batch_size : (i + 1) * batch_size]
@@ -167,7 +169,9 @@ class InMemoryDataset(Dataset):
     def __len__(self):
         return self.n_samples
 
-    def __getitem__(self, idx):
+    def __getitem__(
+        self, idx: Union[int, torch.Tensor, List[int], np.ndarray]
+    ) -> Tuple:
         idx = np.atleast_1d(idx)
         out = []
         for slicing_fn, d in zip(self._slicing_fns, self.data):
