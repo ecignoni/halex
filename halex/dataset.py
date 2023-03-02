@@ -22,6 +22,7 @@ from .hamiltonian import (
     dense_to_blocks,
 )
 from .popan import batched_orthogonal_lowdin_population
+from .model_selection import train_test_split
 
 
 class SCFData:
@@ -150,6 +151,44 @@ class SCFData:
                 atomic_number2symbol[n]: float(n) for n in self.frames[0].numbers
             }
         self._nelec_dict = _nelec_dict
+
+    def train_test_split(self, train_size=0.8):
+        (
+            train_frames,
+            test_frames,
+            train_focks,
+            test_focks,
+            train_ovlps,
+            test_ovlps,
+        ) = train_test_split(
+            self.frames,
+            self.focks,
+            self.ovlps,
+            n_frames=self.max_frames,
+            train_size=train_size,
+        )
+
+        train_data = SCFData(
+            frames=train_frames,
+            focks=train_focks,
+            ovlps=train_ovlps,
+            orbs=self.orbs,
+            cg=self.cg,
+            max_frames=len(train_frames),
+            nelec_dict=self.nelec_dict,
+        )
+
+        test_data = SCFData(
+            frames=test_frames,
+            focks=test_focks,
+            ovlps=test_ovlps,
+            orbs=self.orbs,
+            cg=self.cg,
+            max_frames=len(test_frames),
+            nelec_dict=self.nelec_dict,
+        )
+
+        return train_data, test_data
 
 
 def slice_list(llist: List, indices: np.ndarray) -> List:
