@@ -16,9 +16,6 @@ class RidgeBlockModel(torch.nn.Module):
             in_features=in_features, out_features=out_features, bias=bias
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.layer(x)
-
     def regularization_loss(self, pred: torch.Tensor) -> torch.Tensor:
         # normalize by the number of samples
         return (
@@ -26,3 +23,6 @@ class RidgeBlockModel(torch.nn.Module):
             * torch.squeeze(self.layer.weight.T @ self.layer.weight)
             / pred.shape[0]
         )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.layer(x)
