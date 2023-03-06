@@ -5,7 +5,7 @@ from equistore import TensorBlock, TensorMap
 
 
 class EquivariantStandardScaler:
-    def __init__(self, with_mean=True, with_std=True, components_to_sample=True):
+    def __init__(self, with_mean=False, with_std=True, components_to_sample=True):
         warnings.warn("EquivariantStandardScaler is not well tested: beware.")
         self.with_mean = with_mean
         self.with_std = with_std
