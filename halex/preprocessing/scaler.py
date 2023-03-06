@@ -1,4 +1,4 @@
-import warnings
+# import warnings
 import numpy as np
 import torch
 from equistore import TensorBlock, TensorMap
@@ -6,7 +6,7 @@ from equistore import TensorBlock, TensorMap
 
 class EquivariantStandardScaler:
     def __init__(self, with_mean=False, with_std=True, components_to_sample=True):
-        warnings.warn("EquivariantStandardScaler is not well tested: beware.")
+        # warnings.warn("EquivariantStandardScaler is not well tested: beware.")
         self.with_mean = with_mean
         self.with_std = with_std
         self.components_to_sample = components_to_sample
