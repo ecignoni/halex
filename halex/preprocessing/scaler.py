@@ -1,17 +1,38 @@
-# import warnings
+from __future__ import annotations
+from typing import Any
+
 import numpy as np
 import torch
 from equistore import TensorBlock, TensorMap
 
+Self = Any
+
 
 class EquivariantStandardScaler:
-    def __init__(self, with_mean=False, with_std=True, components_to_sample=True):
-        # warnings.warn("EquivariantStandardScaler is not well tested: beware.")
+    """standard scaler compatible with rotation equivariant features"""
+
+    def __init__(
+        self,
+        with_mean: bool = True,
+        with_std: bool = True,
+        components_to_sample: bool = True,
+        key_name_l: str = "spherical_harmonics_l",
+    ) -> None:
+        """
+        Args:
+            with_mean: whether to subtract the mean to the invariant (l=0)
+                       block
+            with_std: whether to standardize all the blocks
+            components_to_sample: whether to treat the tensormap components
+                                  as samples
+            key_name_l: name of the angular momentum (l) in the tensormap keys
+        """
         self.with_mean = with_mean
         self.with_std = with_std
         self.components_to_sample = components_to_sample
+        self.key_name_l = key_name_l
 
-    def fit(self, tmap):
+    def fit(self, tmap: TensorMap) -> Self:
         self.keys_ = []
         self.mean_ = []
         self.scale_ = []
@@ -26,7 +47,16 @@ class EquivariantStandardScaler:
             if self.components_to_sample:
                 sdim, cdim, pdim = val.shape
                 val = val.reshape(sdim * cdim, pdim)
-            mean = torch.mean(val, dim=0, keepdim=True) if self.with_mean else 0.0
+
+            # if with_mean is True, we remove the mean only to
+            # the components with total angular momentum equal
+            # to 0 (invariants)
+            is_invariant = int(key[self.key_name_l]) == 0
+            if self.with_mean and is_invariant:
+                mean = torch.mean(val, dim=0, keepdim=True)
+            else:
+                mean = 0.0
+
             var = (
                 torch.var(val, dim=0, unbiased=True, keepdim=True)
                 if self.with_std
@@ -111,11 +141,11 @@ class EquivariantStandardScaler:
 
         return tmap
 
-    def transform(self, tmap):
+    def transform(self, tmap: TensorMap) -> TensorMap:
         return self._transformation(tmap, self._forward_transformation)
 
-    def fit_transform(self, tmap):
+    def fit_transform(self, tmap: TensorMap) -> TensorMap:
         return self.fit(tmap).transform(tmap)
 
-    def inverse_transform(self, tmap):
+    def inverse_transform(self, tmap: TensorMap) -> TensorMap:
         return self._transformation(tmap, self._backward_transformation)
