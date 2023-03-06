@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
 from sympy.physics.wigner import wigner_d
-from .clebsh_gordan import _real2complex
+from .cgreal import _real2complex
 
 
 def wigner_d_matrix(l, alpha, beta, gamma):  # noqa: E741
