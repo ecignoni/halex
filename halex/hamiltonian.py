@@ -214,6 +214,12 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
 
         block_type, ai, ni, li, aj, nj, lj = tuple(idx)
 
+        # booleans on block type
+        same_atom = block_type == 0
+        different_species = block_type == 2
+        same_species_symm = block_type == 1
+        same_species_antisymm = block_type == -1
+
         # offset of the orbital block within the pair block in the matrix
         ki_offset = orbs_offset[(ai, ni, li)]
         kj_offset = orbs_offset[(aj, nj, lj)]
@@ -235,17 +241,17 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
             values = block_data[:, :, 0].reshape(2 * li + 1, 2 * lj + 1)
 
             # print(i, ni, li, ki_base, ki_offset)
-            if block_type == 0:
+            if same_atom:
                 ham[islice, jslice] = values
 
                 if ki_offset != kj_offset:
                     ham[jslice, islice] = values.T
 
-            elif block_type == 2:
+            elif different_species:
                 ham[islice, jslice] = values
                 ham[jslice, islice] = values.T
 
-            elif block_type == 1:
+            elif same_species_symm:
                 ham[islice, jslice] += values / np.sqrt(2)
                 ham[jslice, islice] += values.T / np.sqrt(2)
 
@@ -259,7 +265,7 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
                     ham[islice, jslice] += values.T / np.sqrt(2)
                     ham[jslice, islice] += values / np.sqrt(2)
 
-            elif block_type == -1:
+            elif same_species_antisymm:
                 ham[islice, jslice] += values / np.sqrt(2)
                 ham[jslice, islice] += values.T / np.sqrt(2)
 
