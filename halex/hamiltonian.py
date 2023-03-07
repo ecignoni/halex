@@ -191,7 +191,6 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
     """
 
     orbs_tot, orbs_offset = _orbs_offsets(orbs)
-
     atom_blocks_idx = _atom_blocks_idx(frames, orbs_tot)
 
     # init storage for the dense hamiltonians
@@ -205,6 +204,13 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
         ham = torch.zeros(norbs, norbs, device=device)  # , dtype=np.float64)
         dense.append(ham)
 
+    assign_fns = {
+        0: _assign_same_atom,
+        2: _assign_different_species,
+        1: _assign_same_species_symm,
+        -1: _assign_same_species_antisymm,
+    }
+
     # loops over block types
     for idx, block in blocks:
         # I can't loop over the frames directly, so I'll keep track
@@ -214,15 +220,13 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
 
         block_type, ai, ni, li, aj, nj, lj = tuple(idx)
 
-        # booleans on block type
-        same_atom = block_type == 0
-        different_species = block_type == 2
-        same_species_symm = block_type == 1
-        same_species_antisymm = block_type == -1
+        # choose the right function (that assigns block values to fock blocks)
+        assign_fn = assign_fns[block_type]
 
         # offset of the orbital block within the pair block in the matrix
         ki_offset = orbs_offset[(ai, ni, li)]
         kj_offset = orbs_offset[(aj, nj, lj)]
+        same_koff = ki_offset == kj_offset
 
         # loops over samples (structure, i, j)
         for (A, i, j), block_data in zip(block.samples, block.values):
@@ -235,50 +239,63 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
 
             # coordinates of the atom block in the matrix
             ki_base, kj_base = atom_blocks_idx[(dense_idx, i, j)]
-            islice = slice(ki_base + ki_offset, ki_base + ki_offset + 2 * li + 1)
-            jslice = slice(kj_base + kj_offset, kj_base + kj_offset + 2 * lj + 1)
-
+            # values to assign
             values = block_data[:, :, 0].reshape(2 * li + 1, 2 * lj + 1)
+            # assign values
+            assign_fn(
+                ham, values, ki_base, kj_base, ki_offset, kj_offset, same_koff, li, lj
+            )
 
-            # print(i, ni, li, ki_base, ki_offset)
-            if same_atom:
-                ham[islice, jslice] = values
-
-                if ki_offset != kj_offset:
-                    ham[jslice, islice] = values.T
-
-            elif different_species:
-                ham[islice, jslice] = values
-                ham[jslice, islice] = values.T
-
-            elif same_species_symm:
-                ham[islice, jslice] += values / np.sqrt(2)
-                ham[jslice, islice] += values.T / np.sqrt(2)
-
-                if ki_offset != kj_offset:
-                    islice = slice(
-                        ki_base + kj_offset, ki_base + kj_offset + 2 * lj + 1
-                    )
-                    jslice = slice(
-                        kj_base + ki_offset, kj_base + ki_offset + 2 * li + 1
-                    )
-                    ham[islice, jslice] += values.T / np.sqrt(2)
-                    ham[jslice, islice] += values / np.sqrt(2)
-
-            elif same_species_antisymm:
-                ham[islice, jslice] += values / np.sqrt(2)
-                ham[jslice, islice] += values.T / np.sqrt(2)
-
-                if ki_offset != kj_offset:
-                    islice = slice(
-                        ki_base + kj_offset, ki_base + kj_offset + 2 * lj + 1
-                    )
-                    jslice = slice(
-                        kj_base + ki_offset, kj_base + ki_offset + 2 * li + 1
-                    )
-                    ham[islice, jslice] -= values.T / np.sqrt(2)
-                    ham[jslice, islice] -= values / np.sqrt(2)
     return dense
+
+
+def _assign_same_atom(
+    ham, values, ki_base, kj_base, ki_offset, kj_offset, same_koff, li, lj
+):
+    islice = slice(ki_base + ki_offset, ki_base + ki_offset + 2 * li + 1)
+    jslice = slice(kj_base + kj_offset, kj_base + kj_offset + 2 * lj + 1)
+    ham[islice, jslice] = values
+    if not same_koff:
+        ham[jslice, islice] = values.T
+
+
+def _assign_different_species(
+    ham, values, ki_base, kj_base, ki_offset, kj_offset, same_koff, li, lj
+):
+    islice = slice(ki_base + ki_offset, ki_base + ki_offset + 2 * li + 1)
+    jslice = slice(kj_base + kj_offset, kj_base + kj_offset + 2 * lj + 1)
+    ham[islice, jslice] = values
+    ham[jslice, islice] = values.T
+
+
+def _assign_same_species_symm(
+    ham, values, ki_base, kj_base, ki_offset, kj_offset, same_koff, li, lj
+):
+    islice = slice(ki_base + ki_offset, ki_base + ki_offset + 2 * li + 1)
+    jslice = slice(kj_base + kj_offset, kj_base + kj_offset + 2 * lj + 1)
+    values_2norm = values / (2 ** (0.5))
+    ham[islice, jslice] += values_2norm
+    ham[jslice, islice] += values_2norm.T
+    if not same_koff:
+        islice = slice(ki_base + kj_offset, ki_base + kj_offset + 2 * lj + 1)
+        jslice = slice(kj_base + ki_offset, kj_base + ki_offset + 2 * li + 1)
+        ham[islice, jslice] += values_2norm.T
+        ham[jslice, islice] += values_2norm
+
+
+def _assign_same_species_antisymm(
+    ham, values, ki_base, kj_base, ki_offset, kj_offset, same_koff, li, lj
+):
+    islice = slice(ki_base + ki_offset, ki_base + ki_offset + 2 * li + 1)
+    jslice = slice(kj_base + kj_offset, kj_base + kj_offset + 2 * lj + 1)
+    values_2norm = values / (2 ** (0.5))
+    ham[islice, jslice] += values_2norm
+    ham[jslice, islice] += values_2norm.T
+    if not same_koff:
+        islice = slice(ki_base + kj_offset, ki_base + kj_offset + 2 * lj + 1)
+        jslice = slice(kj_base + ki_offset, kj_base + ki_offset + 2 * li + 1)
+        ham[islice, jslice] -= values_2norm.T
+        ham[jslice, islice] -= values_2norm
 
 
 def couple_blocks(blocks, cg=None):
