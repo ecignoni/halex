@@ -232,29 +232,23 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
             islice = slice(ki_base + ki_offset, ki_base + ki_offset + 2 * li + 1)
             jslice = slice(kj_base + kj_offset, kj_base + kj_offset + 2 * lj + 1)
 
+            values = block_data[:, :, 0].reshape(2 * li + 1, 2 * lj + 1)
+
             # print(i, ni, li, ki_base, ki_offset)
             if block_type == 0:
-                ham[islice, jslice] = block_data[:, :, 0].reshape(
-                    2 * li + 1, 2 * lj + 1
-                )
+                ham[islice, jslice] = values
+
                 if ki_offset != kj_offset:
-                    ham[jslice, islice] = (
-                        block_data[:, :, 0].reshape(2 * li + 1, 2 * lj + 1).T
-                    )
+                    ham[jslice, islice] = values.T
+
             elif block_type == 2:
-                ham[islice, jslice] = block_data[:, :, 0].reshape(
-                    2 * li + 1, 2 * lj + 1
-                )
-                ham[jslice, islice] = (
-                    block_data[:, :, 0].reshape(2 * li + 1, 2 * lj + 1).T
-                )
+                ham[islice, jslice] = values
+                ham[jslice, islice] = values.T
+
             elif block_type == 1:
-                ham[islice, jslice] += block_data[:, :, 0].reshape(
-                    2 * li + 1, 2 * lj + 1
-                ) / np.sqrt(2)
-                ham[jslice, islice] += block_data[:, :, 0].reshape(
-                    2 * li + 1, 2 * lj + 1
-                ).T / np.sqrt(2)
+                ham[islice, jslice] += values / np.sqrt(2)
+                ham[jslice, islice] += values.T / np.sqrt(2)
+
                 if ki_offset != kj_offset:
                     islice = slice(
                         ki_base + kj_offset, ki_base + kj_offset + 2 * lj + 1
@@ -262,19 +256,13 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
                     jslice = slice(
                         kj_base + ki_offset, kj_base + ki_offset + 2 * li + 1
                     )
-                    ham[islice, jslice] += block_data[:, :, 0].reshape(
-                        2 * li + 1, 2 * lj + 1
-                    ).T / np.sqrt(2)
-                    ham[jslice, islice] += block_data[:, :, 0].reshape(
-                        2 * li + 1, 2 * lj + 1
-                    ) / np.sqrt(2)
+                    ham[islice, jslice] += values.T / np.sqrt(2)
+                    ham[jslice, islice] += values / np.sqrt(2)
+
             elif block_type == -1:
-                ham[islice, jslice] += block_data[:, :, 0].reshape(
-                    2 * li + 1, 2 * lj + 1
-                ) / np.sqrt(2)
-                ham[jslice, islice] += block_data[:, :, 0].reshape(
-                    2 * li + 1, 2 * lj + 1
-                ).T / np.sqrt(2)
+                ham[islice, jslice] += values / np.sqrt(2)
+                ham[jslice, islice] += values.T / np.sqrt(2)
+
                 if ki_offset != kj_offset:
                     islice = slice(
                         ki_base + kj_offset, ki_base + kj_offset + 2 * lj + 1
@@ -282,12 +270,8 @@ def blocks_to_dense(blocks, frames, orbs):  # noqa: C901
                     jslice = slice(
                         kj_base + ki_offset, kj_base + ki_offset + 2 * li + 1
                     )
-                    ham[islice, jslice] -= block_data[:, :, 0].reshape(
-                        2 * li + 1, 2 * lj + 1
-                    ).T / np.sqrt(2)
-                    ham[jslice, islice] -= block_data[:, :, 0].reshape(
-                        2 * li + 1, 2 * lj + 1
-                    ) / np.sqrt(2)
+                    ham[islice, jslice] -= values.T / np.sqrt(2)
+                    ham[jslice, islice] -= values / np.sqrt(2)
     return dense
 
 
