@@ -183,3 +183,67 @@ def shift_structure_by_n(tmap: TensorMap, n: int) -> TensorMap:
         blocks.append(block)
 
     return TensorMap(tmap.keys, blocks)
+
+
+def get_feature_block(features: TensorMap, key: Labels) -> TensorBlock:
+    block_type, ai, ni, li, aj, nj, lj, L = key
+    inversion_sigma = (-1) ** (li + lj + L)
+    block = features.block(
+        block_type=block_type,
+        spherical_harmonics_l=L,
+        inversion_sigma=inversion_sigma,
+        species_center=ai,
+        species_neighbor=aj,
+    )
+    return block
+
+
+def drop_target_samples(
+    feats: TensorMap, targ_coupled: TensorMap, verbose: bool = False
+) -> TensorMap:
+    blocks = []
+    all_keys_matched = True
+
+    for key, block in targ_coupled:
+        feat_samples = get_feature_block(feats, key).samples.asarray().copy()
+        targ_samples = block.samples.asarray().copy()
+        # find samples in common between the two TensorMaps
+        idx_common = (targ_samples[:, None] == feat_samples).all(-1).any(-1)
+
+        if not np.all(idx_common):
+            all_keys_matched = False
+            if verbose:
+                keystr = (
+                    "("
+                    + "".join(
+                        ["{:s}={}, ".format(n, v) for v, n in zip(key, key.dtype.names)]
+                    )[:-1]
+                    + ")"
+                )
+                print("mismatch for key:", keystr)
+
+        targ_samples = targ_samples[idx_common]
+        targ_samples = Labels(block.samples.names, values=targ_samples)
+
+        if isinstance(block.values, np.ndarray):
+            targ_values = block.values.copy()
+        elif isinstance(block.values, torch.Tensor):
+            targ_values = block.values.clone()
+        else:
+            raise ValueError("TensorMap values neither np.ndarray nor torch.Tensor")
+
+        targ_values = targ_values[idx_common]
+
+        block = TensorBlock(
+            values=targ_values,
+            samples=targ_samples,
+            components=block.components,
+            properties=block.properties,
+        )
+
+        blocks.append(block)
+
+    if all_keys_matched and verbose:
+        print("all keys matched successfully")
+
+    return TensorMap(targ_coupled.keys, blocks)
