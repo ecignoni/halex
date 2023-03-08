@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pickle
 import ase
 import json
@@ -5,9 +7,7 @@ import numpy as np
 import ase.io
 import torch
 
-import equistore
-from equistore import TensorBlock, TensorMap
-import equistore.operations as eqop
+from equistore import Labels, TensorBlock, TensorMap
 
 
 # very exhaustive list
@@ -101,43 +101,6 @@ def load_orbs(path):
     return orbs
 
 
-def train_test_split(*elements, n_frames, train_size=0.8):
-    n_train = int(n_frames * train_size)
-    res = []
-    for elem in elements:
-        if isinstance(elem, equistore.TensorMap):
-            # train
-            res.append(
-                eqop.slice(
-                    elem,
-                    samples=equistore.Labels(
-                        names=["structure"],
-                        values=np.asarray(range(n_train), dtype=np.int32).reshape(
-                            -1, 1
-                        ),
-                    ),
-                )
-            )
-            # test
-            res.append(
-                eqop.slice(
-                    elem,
-                    samples=equistore.Labels(
-                        names=["structure"],
-                        values=np.asarray(
-                            range(n_train, n_frames), dtype=np.int32
-                        ).reshape(-1, 1),
-                    ),
-                )
-            )
-        else:
-            # train
-            res.append(elem[:n_train])
-            # test
-            res.append(elem[n_train:n_frames])
-    return tuple(res)
-
-
 def dump_dict(path, d):
     with open(path, "wb") as handle:
         pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -179,3 +142,44 @@ def tensormap_as_numpy(tmap):
         return x
 
     return _convert_tensormap_dtype(tmap, convert_dtype_fn)
+
+
+def shift_structure_by_n(tmap: TensorMap, n: int) -> TensorMap:
+    """shifts the "structure" value by an integer n
+
+    Given a TensorMap with samples (structure, center, neighbor),
+    returns the a new TensorMap object with the values of
+    "structure" shifted by an integer n.
+    Useful if you want to join two TensorMap objects avoiding
+    the creation of a new "tensor" dimension.
+    """
+    if tmap.sample_names != ("structure", "center", "neighbor"):
+        raise ValueError(f"input TensorMap has wrong samples: {tmap.sample_names}")
+
+    blocks = []
+
+    for _, block in tmap:
+        # shift the structure values
+        samples = np.array(block.samples.asarray())
+        samples[:, 0] += n
+        samples = Labels(block.samples.names, values=samples)
+
+        # check if numpy or torch, otherwise complain
+        if isinstance(block.values, np.ndarray):
+            values = block.values.copy()
+        elif isinstance(block.values, torch.Tensor):
+            values = block.values.clone()
+        else:
+            raise ValueError("TensorMap values neighter np.ndarray nor torch.Tensor")
+
+        # new block with update structure values
+        block = TensorBlock(
+            values=values,
+            samples=samples,
+            components=block.components,
+            properties=block.properties,
+        )
+
+        blocks.append(block)
+
+    return TensorMap(tmap.keys, blocks)
