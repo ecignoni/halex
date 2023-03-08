@@ -110,6 +110,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
         super().__init__(*args, **kwargs)
 
     def loss_fn(
+        self,
         pred_blocks: TensorMap,
         frames: List[Atoms],
         eigvals: List[torch.Tensor],
@@ -203,27 +204,3 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                     self.dump_state()
 
         return self
-
-    def fit_ridge_analytical(self, features: TensorMap, targets: TensorMap) -> None:
-        for key, model in zip(self.predict_keys, self.models):
-            feat_block = self.get_feature_block(features, key)
-            targ_block = targets[key]
-
-            if feat_block.values.shape[0] != targ_block.values.shape[0]:
-                print("features", feat_block.samples)
-                print("features", targ_block.samples)
-                print(key)
-                break
-
-            # x = np.array(feat_block.values.reshape(-1, feat_block.values.shape[2]))
-            # y = np.array(targ_block.values.reshape(-1, 1))
-
-            # ridge = Ridge(alpha=self.alpha, fit_intercept=self.bias).fit(x, y)
-
-            # model.layer.weight = torch.nn.Parameter(
-            #     torch.from_numpy(ridge.coef_.copy().astype(np.float64))
-            # )
-            # if self.bias:
-            #     model.layer.bias = torch.nn.Parameter(
-            #         torch.from_numpy(ridge.intercept_.copy().astype(np.float64))
-            #     )
