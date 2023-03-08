@@ -82,8 +82,8 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                 # accumulate losses in the batch
                 with torch.no_grad():
                     losses["total"].append(loss.item())
-                    losses["eig_loss"].append(loss.item())
-                    losses["low_loss"].append(loss.item())
+                    losses["eig_loss"].append(eig_loss.item())
+                    losses["low_loss"].append(low_loss.item())
 
             # average loss in the batch
             with torch.no_grad():
@@ -183,8 +183,8 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                 # accumulate losses in the batch
                 with torch.no_grad():
                     losses["total"].append(loss.item())
-                    losses["eig_loss"].append(loss.item())
-                    losses["low_loss"].append(loss.item())
+                    losses["eig_loss"].append(eig_loss.item())
+                    losses["low_loss"].append(low_loss.item())
 
             # average loss in the batch
             with torch.no_grad():
