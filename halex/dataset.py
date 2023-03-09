@@ -34,9 +34,11 @@ class SCFData:
         orbs: Union[str, Dict[int, List]],
         cg: "ClebshGordanReal",  # noqa
         max_frames: int = None,
+        skip_first_n: int = 0,
         nelec_dict: Dict[str, float] = None,
     ) -> None:
         self.max_frames = max_frames
+        self.skip_first_n = skip_first_n
         self.frames = frames
         self.orbs = orbs
         self.focks = focks
@@ -64,13 +66,15 @@ class SCFData:
     def frames(self, _frames):
         if isinstance(_frames, str):
             # try to load the frames
-            self._frames = load_frames(_frames)
-        else:
-            self._frames = _frames
-        self.n_frames = (
+            _frames = load_frames(_frames)
+
+        self._frames = _frames
+
+        self._max_frames = (
             len(self._frames) if self.max_frames is None else self.max_frames
         )
-        self._frames = self._frames[: self.n_frames]
+        self._frames = self._frames[self.skip_first_n : self._max_frames]
+        self.n_frames = len(self._frames)
 
     @property
     def orbs(self):
@@ -114,7 +118,7 @@ class SCFData:
         if isinstance(_focks, str):
             _focks = torch.from_numpy(np.load(_focks))
 
-        _focks = self._ensure_torch(_focks)[: self.n_frames]
+        _focks = self._ensure_torch(_focks)[self.skip_first_n : self._max_frames]
         self._focks = self._fix_pyscf_l1(_focks)
 
     @property
@@ -130,7 +134,7 @@ class SCFData:
         if isinstance(_ovlps, str):
             _ovlps = torch.from_numpy(np.load(_ovlps))
 
-        _ovlps = self._ensure_torch(_ovlps)[: self.n_frames]
+        _ovlps = self._ensure_torch(_ovlps)[self.skip_first_n : self._max_frames]
 
         # check that the basis is normalized
         diag = torch.diagonal(_ovlps, dim1=1, dim2=2).detach().cpu().numpy()
