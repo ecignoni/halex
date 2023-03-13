@@ -51,12 +51,15 @@ class SCFData:
         self.focks_orth_tmap_coupled = couple_blocks(self.focks_orth_tmap, cg=self.cg)
 
         self.ao_labels = get_ao_labels(self.orbs, self.frames[0].numbers)
-        self.mo_energy, _ = torch.linalg.eigh(self.focks_orth)
+        self.mo_energy, self.mo_coeff_orth = torch.linalg.eigh(self.focks_orth)
         self.lowdin_charges, _ = batched_orthogonal_lowdin_population(
             focks_orth=self.focks_orth,
             nelec_dict=self.nelec_dict,
             ao_labels=self.ao_labels,
         )
+        self.mo_occ = self._get_mo_occupancy()
+        self.atom_pure_symbols = self.frames[0].get_chemical_symbols()
+        self.natm = len(self.atom_pure_symbols)
 
     @property
     def frames(self):
@@ -155,6 +158,15 @@ class SCFData:
                 atomic_number2symbol[n]: float(n) for n in self.frames[0].numbers
             }
         self._nelec_dict = _nelec_dict
+
+    def _get_mo_occupancy(self):
+        symbols = self.frames[0].get_chemical_symbols()
+        nel = sum([self.nelec_dict[sym] for sym in symbols])
+        nmo = self.focks_orth.shape[-1]
+        mo_occ = torch.zeros(nmo, dtype=int)
+        for i in range(int(nel / 2)):
+            mo_occ[i] = 2.0
+        return mo_occ
 
     def train_test_split(self, train_size=0.8):
         (
