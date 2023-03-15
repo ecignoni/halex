@@ -20,7 +20,7 @@ class RidgeBlockModel(torch.nn.Module):
         # normalize by the number of samples
         return (
             self.alpha
-            * torch.squeeze(self.layer.weight.T @ self.layer.weight)
+            * torch.sum(self.layer.weight.T @ self.layer.weight)
             / pred.shape[0]
         )
 
