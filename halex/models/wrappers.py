@@ -42,7 +42,12 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
         )
         loss_a = torch.mean((eigvals - pred_eigvals) ** 2)
         loss_b = torch.mean((lowdinq - pred_lowdinq) ** 2)
-        return 1.5e6 * loss_a + 1e6 * loss_b, loss_a, loss_b
+        return (
+            1.5e6 * loss_a + 1e6 * loss_b + self.regloss_,
+            loss_a,
+            loss_b,
+            self.regloss_,
+        )
 
     def fit(
         self,
@@ -64,7 +69,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                 pred = self(x)
 
                 # loss + regularization
-                loss, eig_loss, low_loss = self.loss_fn(
+                loss, eig_loss, low_loss, reg_loss = self.loss_fn(
                     pred_blocks=pred,
                     frames=frames,
                     eigvals=eigvals,
@@ -84,6 +89,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                     losses["total"].append(loss.item())
                     losses["eig_loss"].append(eig_loss.item())
                     losses["low_loss"].append(low_loss.item())
+                    losses["reg_loss"].append(reg_loss.item())
 
             # average loss in the batch
             with torch.no_grad():
@@ -96,6 +102,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                         loss=losses["total"],
                         eig_loss=losses["eig_loss"],
                         low_loss=losses["low_loss"],
+                        reg_loss=losses["reg_loss"],
                     )
                     self.update_history(losses)
 
@@ -143,7 +150,12 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
         # mean over samples
         loss_b = torch.mean(loss_b)
 
-        return 1.5e6 * loss_a + 1e6 * loss_b, loss_a, loss_b
+        return (
+            1.5e6 * loss_a + 1e6 * loss_b + self.reg_loss_,
+            loss_a,
+            loss_b,
+            self.reg_loss_,
+        )
 
     def fit(
         self,
@@ -164,8 +176,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                 optimizer.zero_grad()
                 pred = self(x)
 
-                # loss + regularization
-                loss, eig_loss, low_loss = self.loss_fn(
+                loss, eig_loss, low_loss, reg_loss = self.loss_fn(
                     pred_blocks=pred,
                     frames=frames,
                     eigvals=eigvals,
@@ -174,8 +185,6 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                     ao_labels=ao_labels,
                     nelec_dict=train_dataset.nelec_dict,
                 )
-                # for model in self.models:
-                #     loss += model.regularization_loss(pred=pred)
 
                 loss.backward()
                 optimizer.step()
@@ -185,6 +194,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                     losses["total"].append(loss.item())
                     losses["eig_loss"].append(eig_loss.item())
                     losses["low_loss"].append(low_loss.item())
+                    losses["reg_loss"].append(reg_loss.item())
 
             # average loss in the batch
             with torch.no_grad():
@@ -197,6 +207,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                         loss=losses["total"],
                         eig_loss=losses["eig_loss"],
                         low_loss=losses["low_loss"],
+                        reg_loss=losses["reg_loss"],
                     )
                     self.update_history(losses)
 

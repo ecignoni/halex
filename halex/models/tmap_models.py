@@ -74,6 +74,7 @@ class RidgeModel(torch.nn.Module):
         torch.save(self.state_dict(), state_dict_path)
 
     def forward(self, features: TensorMap) -> TensorMap:
+        self.regloss_ = 0.0
         pred_blocks = []
         for key, components, model in zip(
             self.predict_keys, self.predict_components, self.models
@@ -84,6 +85,7 @@ class RidgeModel(torch.nn.Module):
             nsamples, ncomps, nprops = x.shape
             x = x.reshape(nsamples * ncomps, nprops)
             pred = model(x)
+            self.regloss_ += model.regularization_loss(pred)
 
             pred_block = TensorBlock(
                 values=pred.reshape((-1, 2 * L + 1, 1)),

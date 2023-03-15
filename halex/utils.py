@@ -38,9 +38,9 @@ def get_ao_labels(orbs, atomic_numbers):
     return ao_labels
 
 
-def fix_pyscf_l1(dense, frame, orbs):
-    """pyscf stores l=1 terms in a xyz order, corresponding to (m=0, 1, -1).
-    this converts into a canonical form where m is sorted as (-1, 0,1)"""
+def fix_pyscf_l1(dense, frame, orbs, return_index=False):
+    """converts from the pyscf ordering for l=1, (1, -1, 0), to
+    the canonical ordering (-1, 0, 1)"""
     idx = []
     iorb = 0
     atoms = list(frame.numbers)
@@ -55,10 +55,15 @@ def fix_pyscf_l1(dense, frame, orbs):
                     idx += range(iorb, iorb + 2 * l + 1)
                 iorb += 2 * l + 1
                 cur = (n, l)
-    return dense[idx][:, idx]
+    if return_index:
+        return idx
+    else:
+        return dense[idx][:, idx]
 
 
 def recover_pyscf_l1(dense, frame, orbs, return_index=False):
+    """converts from the canonical ordering (-1, 0, 1) to the pyscf
+    ordering (1, -1, 0) for l=1"""
     idx = []
     iorb = 0
     atoms = list(frame.numbers)
