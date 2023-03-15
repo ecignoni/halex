@@ -58,6 +58,27 @@ def fix_pyscf_l1(dense, frame, orbs):
     return dense[idx][:, idx]
 
 
+def recover_pyscf_l1(dense, frame, orbs, return_index=False):
+    idx = []
+    iorb = 0
+    atoms = list(frame.numbers)
+    for atype in atoms:
+        cur = ()
+        for ia, a in enumerate(orbs[atype]):
+            n, l, m = a
+            if (n, l) != cur:
+                if l == 1:
+                    idx += [iorb + 2, iorb, iorb + 1]
+                else:
+                    idx += range(iorb, iorb + 2 * l + 1)
+                iorb += 2 * l + 1
+                cur = (n, l)
+    if return_index:
+        return idx
+    else:
+        return dense[idx][:, idx]
+
+
 def fix_pyscf_l1_orbs(orbs):
     orbs = orbs.copy()
     for key in orbs:
