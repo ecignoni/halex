@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name="halex",
@@ -7,5 +7,5 @@ setup(
     author="Edoardo Cignoni",
     author_email="edoardo.cignoni96@gmail.com",
     description=open("README.md").read(),
-    packages=["halex"],
+    packages=find_packages(),
 )
