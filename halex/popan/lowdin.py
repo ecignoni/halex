@@ -88,6 +88,36 @@ def batched_orthogonal_lowdin_population(focks_orth, nelec_dict, ao_labels):
     return chg, pop
 
 
+def orthogonal_lowdinbyMO_population(fock_orth, nelec_dict, ao_labels):
+    eps, c_tilde = torch.linalg.eigh(fock_orth)
+    nmo = fock_orth.shape[0]
+
+    n_elec = int(
+        sum(
+            [
+                nelec_dict[symb]
+                for idx, symb in np.unique([(i, s) for i, s, _ in ao_labels], axis=0)
+            ]
+        )
+    )
+    mo_occ = torch.Tensor(
+        [2 for i in range(n_elec // 2)] + [0 for i in range(nmo - n_elec // 2)]
+    ).type(torch.int32)
+    occidx = torch.Tensor([i for i, occ in enumerate(mo_occ) if occ != 0]).long()
+
+    pop = 2 * torch.einsum("mi,mi->im", c_tilde[:, occidx], c_tilde[:, occidx])
+    nocc = len(occidx)
+    atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
+    natm = len(atoms)
+    atom_charges = torch.DoubleTensor([nelec_dict[a] for (_, a) in atoms])
+    chg = torch.zeros((nocc, natm))
+    chg[:] = atom_charges
+    for i, (iat, *_) in enumerate(ao_labels):
+        chg[:, iat] -= pop[:, i]
+
+    return chg
+
+
 # if __name__ == '__main__':
 #
 #     def check_lowdin():
