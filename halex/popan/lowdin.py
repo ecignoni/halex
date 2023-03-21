@@ -3,13 +3,18 @@ import torch
 from ..operations import isqrtm
 
 
-def lowdin_population(fock, ovlp, nelec_dict, ao_labels):
-    ovlp_i12 = isqrtm(ovlp)
-    fock_tilde = torch.einsum("ij,jk,kl->il", ovlp_i12, fock, ovlp_i12)
-    eps, c_tilde = torch.linalg.eigh(fock_tilde)
+# ============================================================================
+# Utilities
+# ============================================================================
 
-    nmo = fock.shape[0]
-    n_elec = int(
+
+def _lowdin_orthogonalize(fock, ovlp):
+    ovlp_i12 = isqrtm(ovlp)
+    return torch.einsum("ij,jk,kl->il", ovlp_i12, fock, ovlp_i12)
+
+
+def _get_n_elec(nelec_dict, ao_labels):
+    return int(
         sum(
             [
                 nelec_dict[symb]
@@ -17,17 +22,42 @@ def lowdin_population(fock, ovlp, nelec_dict, ao_labels):
             ]
         )
     )
-    mo_occ = torch.Tensor(
+
+
+def _get_mo_occ(nmo, n_elec):
+    return torch.Tensor(
         [2 for i in range(n_elec // 2)] + [0 for i in range(nmo - n_elec // 2)]
-    ).type(torch.int32)
-    occidx = torch.Tensor([i for i, occ in enumerate(mo_occ) if occ != 0]).long()
+    ).long()
+
+
+def _get_occidx(mo_occ):
+    return torch.Tensor([i for i, occ in enumerate(mo_occ) if occ != 0]).long()
+
+
+def _get_atom_charges(nelec_dict, ao_labels):
+    atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
+    return torch.DoubleTensor([nelec_dict[a] for (_, a) in atoms])
+
+
+# ============================================================================
+# Utilities
+# ============================================================================
+
+
+def lowdin_population(fock, ovlp, nelec_dict, ao_labels):
+    fock_tilde = _lowdin_orthogonalize(fock, ovlp)
+    eps, c_tilde = torch.linalg.eigh(fock_tilde)
+
+    nmo = fock.shape[0]
+    n_elec = _get_n_elec(nelec_dict, ao_labels)
+
+    mo_occ = _get_mo_occ(nmo, n_elec)
+    occidx = _get_occidx(mo_occ)
 
     pop = 2 * torch.einsum("ia,ia->i", c_tilde[:, occidx], c_tilde[:, occidx].conj())
-    atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
-    chg = torch.Tensor([nelec_dict[a] for (i, a) in atoms])
-    for i, lbl in enumerate(ao_labels):
-        atom_idx = int(lbl[0])
-        chg[atom_idx] -= pop[i]
+    chg = _get_atom_charges(nelec_dict, ao_labels)
+    for i, (iat, *_) in enumerate(ao_labels):
+        chg[iat] -= pop[i]
 
     return chg, pop
 
@@ -36,25 +66,15 @@ def orthogonal_lowdin_population(fock_orth, nelec_dict, ao_labels):
     eps, c_tilde = torch.linalg.eigh(fock_orth)
 
     nmo = fock_orth.shape[0]
-    n_elec = int(
-        sum(
-            [
-                nelec_dict[symb]
-                for idx, symb in np.unique([(i, s) for i, s, _ in ao_labels], axis=0)
-            ]
-        )
-    )
-    mo_occ = torch.Tensor(
-        [2 for i in range(n_elec // 2)] + [0 for i in range(nmo - n_elec // 2)]
-    ).type(torch.int32)
-    occidx = torch.Tensor([i for i, occ in enumerate(mo_occ) if occ != 0]).long()
+    n_elec = _get_n_elec(nelec_dict, ao_labels)
+
+    mo_occ = _get_mo_occ(nmo, n_elec)
+    occidx = _get_occidx(mo_occ)
 
     pop = 2 * torch.einsum("ia,ia->i", c_tilde[:, occidx], c_tilde[:, occidx].conj())
-    atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
-    chg = torch.Tensor([nelec_dict[a] for (i, a) in atoms])
-    for i, lbl in enumerate(ao_labels):
-        atom_idx = int(lbl[0])
-        chg[atom_idx] -= pop[i]
+    chg = _get_atom_charges(nelec_dict, ao_labels)
+    for i, (iat, *_) in enumerate(ao_labels):
+        chg[iat] -= pop[i]
 
     return chg, pop
 
@@ -63,27 +83,18 @@ def batched_orthogonal_lowdin_population(focks_orth, nelec_dict, ao_labels):
     eps, c_tilde = torch.linalg.eigh(focks_orth)
 
     n_frames, nmo, _ = focks_orth.shape
-    n_elec = int(
-        sum(
-            [
-                nelec_dict[symb]
-                for idx, symb in np.unique([(i, s) for i, s, _ in ao_labels], axis=0)
-            ]
-        )
-    )
-    mo_occ = torch.Tensor(
-        [2 for i in range(n_elec // 2)] + [0 for i in range(nmo - n_elec // 2)]
-    ).type(torch.int32)
-    occidx = torch.Tensor([i for i, occ in enumerate(mo_occ) if occ != 0]).long()
+    n_elec = _get_n_elec(nelec_dict, ao_labels)
+
+    mo_occ = _get_mo_occ(nmo, n_elec)
+    occidx = _get_occidx(mo_occ)
 
     pop = 2 * torch.einsum(
         "fia,fia->fi", c_tilde[:, :, occidx], c_tilde[:, :, occidx].conj()
     )
-    atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
-    chg = torch.Tensor([[nelec_dict[a] for (i, a) in atoms]]).repeat(n_frames, 1)
-    for i, lbl in enumerate(ao_labels):
-        atom_idx = int(lbl[0])
-        chg[:, atom_idx] -= pop[:, i]
+    chg = _get_atom_charges(nelec_dict, ao_labels)
+    chg = chg.repeat(n_frames, 1)
+    for i, (iat, *_) in enumerate(ao_labels):
+        chg[:, iat] -= pop[:, i]
 
     return chg, pop
 
@@ -92,24 +103,15 @@ def orthogonal_lowdinbyMO_population(fock_orth, nelec_dict, ao_labels):
     eps, c_tilde = torch.linalg.eigh(fock_orth)
     nmo = fock_orth.shape[0]
 
-    n_elec = int(
-        sum(
-            [
-                nelec_dict[symb]
-                for idx, symb in np.unique([(i, s) for i, s, _ in ao_labels], axis=0)
-            ]
-        )
-    )
-    mo_occ = torch.Tensor(
-        [2 for i in range(n_elec // 2)] + [0 for i in range(nmo - n_elec // 2)]
-    ).type(torch.int32)
-    occidx = torch.Tensor([i for i, occ in enumerate(mo_occ) if occ != 0]).long()
+    n_elec = _get_n_elec(nelec_dict, ao_labels)
+
+    mo_occ = _get_mo_occ(nmo, n_elec)
+    occidx = _get_occidx(mo_occ)
 
     pop = 2 * torch.einsum("mi,mi->im", c_tilde[:, occidx], c_tilde[:, occidx].conj())
     nocc = len(occidx)
-    atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
-    natm = len(atoms)
-    atom_charges = torch.DoubleTensor([nelec_dict[a] for (_, a) in atoms])
+    atom_charges = _get_atom_charges(nelec_dict, ao_labels)
+    natm = len(atom_charges)
     chg = torch.zeros((nocc, natm))
     chg[:] = atom_charges
     for i, (iat, *_) in enumerate(ao_labels):
@@ -122,26 +124,17 @@ def batched_orthogonal_lowdinbyMO_population(focks_orth, nelec_dict, ao_labels):
     eps, c_tilde = torch.linalg.eigh(focks_orth)
 
     n_frames, nmo, _ = focks_orth.shape
-    n_elec = int(
-        sum(
-            [
-                nelec_dict[symb]
-                for idx, symb in np.unique([(i, s) for i, s, _ in ao_labels], axis=0)
-            ]
-        )
-    )
-    mo_occ = torch.Tensor(
-        [2 for i in range(n_elec // 2)] + [0 for i in range(nmo - n_elec // 2)]
-    ).type(torch.int32)
-    occidx = torch.Tensor([i for i, occ in enumerate(mo_occ) if occ != 0]).long()
+    n_elec = _get_n_elec(nelec_dict, ao_labels)
+
+    mo_occ = _get_mo_occ(nmo, n_elec)
+    occidx = _get_occidx(mo_occ)
 
     pop = 2 * torch.einsum(
         "fmi,fmi->fim", c_tilde[:, :, occidx], c_tilde[:, :, occidx].conj()
     )
     nocc = len(occidx)
-    atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
-    natm = len(atoms)
-    atom_charges = torch.DoubleTensor([nelec_dict[a] for (_, a) in atoms])
+    atom_charges = _get_atom_charges(nelec_dict, ao_labels)
+    natm = len(atom_charges)
     chg = torch.zeros((n_frames, nocc, natm))
     chg[:, :] = atom_charges
     for i, (iat, *_) in enumerate(ao_labels):
