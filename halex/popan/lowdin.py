@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import Tuple, Dict, List, Any
+
 import numpy as np
 import torch
 from ..operations import isqrtm
@@ -8,12 +11,14 @@ from ..operations import isqrtm
 # ============================================================================
 
 
-def _lowdin_orthogonalize(fock, ovlp):
+def _lowdin_orthogonalize(
+    fock: torch.Tensor, ovlp: torch.Tensor
+) -> Tuple[torch.Tensor, torch.Tensor]:
     ovlp_i12 = isqrtm(ovlp)
     return torch.einsum("ij,jk,kl->il", ovlp_i12, fock, ovlp_i12)
 
 
-def _get_n_elec(nelec_dict, ao_labels):
+def _get_n_elec(nelec_dict: Dict[int, float], ao_labels: List[Tuple[int, Any]]) -> int:
     return int(
         sum(
             [
@@ -24,17 +29,19 @@ def _get_n_elec(nelec_dict, ao_labels):
     )
 
 
-def _get_mo_occ(nmo, n_elec):
+def _get_mo_occ(nmo: int, n_elec: int) -> torch.Tensor:
     return torch.Tensor(
         [2 for i in range(n_elec // 2)] + [0 for i in range(nmo - n_elec // 2)]
     ).long()
 
 
-def _get_occidx(mo_occ):
+def _get_occidx(mo_occ: torch.Tensor) -> torch.Tensor:
     return torch.Tensor([i for i, occ in enumerate(mo_occ) if occ != 0]).long()
 
 
-def _get_atom_charges(nelec_dict, ao_labels):
+def _get_atom_charges(
+    nelec_dict: Dict[int, float], ao_labels: List[Tuple[int, Any]]
+) -> torch.Tensor:
     atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
     return torch.DoubleTensor([nelec_dict[a] for (_, a) in atoms])
 
@@ -44,7 +51,13 @@ def _get_atom_charges(nelec_dict, ao_labels):
 # ============================================================================
 
 
-def lowdin_population(fock, ovlp, nelec_dict, ao_labels):
+def lowdin_population(
+    fock: torch.Tensor,
+    ovlp: torch.Tensor,
+    nelec_dict: Dict[int, float],
+    ao_labels: List[Tuple[int, Any]],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Löwdin population analysis"""
     fock_tilde = _lowdin_orthogonalize(fock, ovlp)
     eps, c_tilde = torch.linalg.eigh(fock_tilde)
 
@@ -62,7 +75,12 @@ def lowdin_population(fock, ovlp, nelec_dict, ao_labels):
     return chg, pop
 
 
-def orthogonal_lowdin_population(fock_orth, nelec_dict, ao_labels):
+def orthogonal_lowdin_population(
+    fock_orth: torch.Tensor,
+    nelec_dict: Dict[int, float],
+    ao_labels: List[Tuple[int, Any]],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Löwdin population analysis"""
     eps, c_tilde = torch.linalg.eigh(fock_orth)
 
     nmo = fock_orth.shape[0]
@@ -79,7 +97,12 @@ def orthogonal_lowdin_population(fock_orth, nelec_dict, ao_labels):
     return chg, pop
 
 
-def batched_orthogonal_lowdin_population(focks_orth, nelec_dict, ao_labels):
+def batched_orthogonal_lowdin_population(
+    focks_orth: torch.Tensor,
+    nelec_dict: Dict[int, float],
+    ao_labels: List[Tuple[int, Any]],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Löwdin population analysis"""
     eps, c_tilde = torch.linalg.eigh(focks_orth)
 
     n_frames, nmo, _ = focks_orth.shape
@@ -99,7 +122,12 @@ def batched_orthogonal_lowdin_population(focks_orth, nelec_dict, ao_labels):
     return chg, pop
 
 
-def orthogonal_lowdinbyMO_population(fock_orth, nelec_dict, ao_labels):
+def orthogonal_lowdinbyMO_population(
+    fock_orth: torch.Tensor,
+    nelec_dict: Dict[int, float],
+    ao_labels: List[Tuple[int, Any]],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Löwdin population analysis"""
     eps, c_tilde = torch.linalg.eigh(fock_orth)
     nmo = fock_orth.shape[0]
 
@@ -120,7 +148,12 @@ def orthogonal_lowdinbyMO_population(fock_orth, nelec_dict, ao_labels):
     return chg
 
 
-def batched_orthogonal_lowdinbyMO_population(focks_orth, nelec_dict, ao_labels):
+def batched_orthogonal_lowdinbyMO_population(
+    focks_orth: torch.Tensor,
+    nelec_dict: Dict[int, float],
+    ao_labels: List[Tuple[int, Any]],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Löwdin population analysis"""
     eps, c_tilde = torch.linalg.eigh(focks_orth)
 
     n_frames, nmo, _ = focks_orth.shape
