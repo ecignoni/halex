@@ -38,10 +38,12 @@ class SCFData:
         cg: "ClebshGordanReal",  # noqa
         max_frames: int = None,
         skip_first_n: int = 0,
+        indices: Union[torch.Tensor, np.ndarray] = None,
         nelec_dict: Dict[str, float] = None,
     ) -> None:
         self.max_frames = max_frames
         self.skip_first_n = skip_first_n
+        self.indices = indices
         self.frames = frames
         self.orbs = orbs
         self.focks = focks
@@ -81,10 +83,17 @@ class SCFData:
 
         self._frames = _frames
 
-        self._max_frames = (
-            len(self._frames) if self.max_frames is None else self.max_frames
-        )
-        self._frames = self._frames[self.skip_first_n : self._max_frames]
+        if self.indices is None:
+            # we are not given indices: load with start/stop
+            self._max_frames = (
+                len(self._frames) if self.max_frames is None else self.max_frames
+            )
+            self._frames = self._frames[self.skip_first_n : self._max_frames]
+
+        else:
+            # we are given indices: load them
+            self._frames = [self._frames[i] for i in self.indices]
+
         self.n_frames = len(self._frames)
 
     @property
@@ -129,7 +138,14 @@ class SCFData:
         if isinstance(_focks, str):
             _focks = torch.from_numpy(np.load(_focks))
 
-        _focks = self._ensure_torch(_focks)[self.skip_first_n : self._max_frames]
+        _focks = self._ensure_torch(_focks)
+
+        if self.indices is None:
+            _focks = _focks[self.skip_first_n : self._max_frames]
+
+        else:
+            _focks = _focks[self.indices]
+
         self._focks = self._fix_pyscf_l1(_focks)
 
     @property
@@ -145,7 +161,12 @@ class SCFData:
         if isinstance(_ovlps, str):
             _ovlps = torch.from_numpy(np.load(_ovlps))
 
-        _ovlps = self._ensure_torch(_ovlps)[self.skip_first_n : self._max_frames]
+        _ovlps = self._ensure_torch(_ovlps)
+
+        if self.indices is None:
+            _ovlps = _ovlps[self.skip_first_n : self._max_frames]
+        else:
+            _ovlps = _ovlps[self.indices]
 
         # check that the basis is normalized
         diag = torch.diagonal(_ovlps, dim1=1, dim2=2).detach().cpu().numpy()
@@ -188,7 +209,7 @@ class SCFData:
             self.frames,
             self.focks,
             self.ovlps,
-            n_frames=self.max_frames,
+            n_frames=self.n_frames,
             train_size=train_size,
         )
 
