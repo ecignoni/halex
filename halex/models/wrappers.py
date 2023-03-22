@@ -3,7 +3,11 @@ from typing import Dict, List, Any, Tuple
 
 from collections import defaultdict
 from .tmap_models import RidgeModel
-from ..popan import batched_orthogonal_lowdin_population, orthogonal_lowdin_population
+from ..popan import (
+    batched_orthogonal_lowdin_population,
+    orthogonal_lowdin_population,
+    batched_orthogonal_lowdinbyMO_population,
+)
 from ..hamiltonian import blocks_to_dense, decouple_blocks
 
 import numpy as np
@@ -215,3 +219,36 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                     self.dump_state()
 
         return self
+
+
+class RidgeOnEnergiesAndLowdinByMO(RidgeOnEnergiesAndLowdin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def loss_fn(
+        self,
+        pred_blocks: TensorMap,
+        frames: List[Atoms],
+        eigvals: torch.Tensor,
+        lowdinq: torch.Tensor,
+        orbs: Dict[int, List],
+        ao_labels: List[int],
+        nelec_dict: Dict[str, float],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        pred_focks = torch.stack(
+            blocks_to_dense(decouple_blocks(pred_blocks), frames, orbs)
+        )
+        pred_eigvals = torch.linalg.eigvalsh(pred_focks)
+        pred_lowdinq, _ = batched_orthogonal_lowdinbyMO_population(
+            pred_focks,
+            nelec_dict,
+            ao_labels,
+        )
+        loss_a = torch.mean((eigvals - pred_eigvals) ** 2)
+        loss_b = torch.mean((lowdinq - pred_lowdinq) ** 2)
+        return (
+            1.5e6 * loss_a + 1e6 * loss_b + self.regloss_,
+            loss_a,
+            loss_b,
+            self.regloss_,
+        )
