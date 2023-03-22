@@ -21,7 +21,10 @@ from .hamiltonian import (
     couple_blocks,
     dense_to_blocks,
 )
-from .popan import batched_orthogonal_lowdin_population
+from .popan import (
+    batched_orthogonal_lowdin_population,
+    batched_orthogonal_lowdinbyMO_population,
+)
 from .model_selection import train_test_split
 
 
@@ -53,6 +56,11 @@ class SCFData:
         self.ao_labels = get_ao_labels(self.orbs, self.frames[0].numbers)
         self.mo_energy, self.mo_coeff_orth = torch.linalg.eigh(self.focks_orth)
         self.lowdin_charges, _ = batched_orthogonal_lowdin_population(
+            focks_orth=self.focks_orth,
+            nelec_dict=self.nelec_dict,
+            ao_labels=self.ao_labels,
+        )
+        self.lowdin_charges_byMO, _ = batched_orthogonal_lowdinbyMO_population(
             focks_orth=self.focks_orth,
             nelec_dict=self.nelec_dict,
             ao_labels=self.ao_labels,

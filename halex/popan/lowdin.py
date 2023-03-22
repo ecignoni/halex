@@ -145,7 +145,7 @@ def orthogonal_lowdinbyMO_population(
     for i, (iat, *_) in enumerate(ao_labels):
         chg[:, iat] -= pop[:, i]
 
-    return chg
+    return chg, pop
 
 
 def batched_orthogonal_lowdinbyMO_population(
@@ -173,7 +173,7 @@ def batched_orthogonal_lowdinbyMO_population(
     for i, (iat, *_) in enumerate(ao_labels):
         chg[:, :, iat] -= pop[:, :, i]
 
-    return chg
+    return chg, pop
 
 
 # if __name__ == '__main__':
