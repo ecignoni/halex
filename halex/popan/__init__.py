@@ -9,4 +9,6 @@ from .lowdin import (
     lowdin_population,
     orthogonal_lowdin_population,
     batched_orthogonal_lowdin_population,
+    orthogonal_lowdinbyMO_population,
+    batched_orthogonal_lowdinbyMO_population,
 )

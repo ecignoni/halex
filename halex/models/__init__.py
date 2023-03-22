@@ -3,4 +3,5 @@ from .tmap_models import RidgeModel
 from .wrappers import (
     RidgeOnEnergiesAndLowdin,
     RidgeOnEnergiesAndLowdinMultipleMolecules,
+    RidgeOnEnergiesAndLowdinByMO,
 )
