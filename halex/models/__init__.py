@@ -4,4 +4,5 @@ from .wrappers import (
     RidgeOnEnergiesAndLowdin,
     RidgeOnEnergiesAndLowdinMultipleMolecules,
     RidgeOnEnergiesAndLowdinByMO,
+    RidgeOnEnergiesAndLowdinByMO_2,
 )
