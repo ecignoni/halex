@@ -281,11 +281,11 @@ class RidgeOnEnergiesAndLowdinByMO_2(RidgeOnEnergiesAndLowdin):
             nelec_dict,
             ao_labels,
         )
-        # skip the requested amount of MO
-        pred_lowdinq = pred_lowdinq[:, self.skip_n_mo :]
 
         loss_a = torch.mean((eigvals - pred_eigvals) ** 2)
-        loss_b = torch.mean((lowdinq - pred_lowdinq) ** 2)
+        loss_b = torch.mean(
+            (lowdinq[:, self.skip_n_mo :] - pred_lowdinq[:, self.skip_n_mo :]) ** 2
+        )
 
         return (
             1.5e6 * loss_a + 1e6 * loss_b + self.regloss_,
