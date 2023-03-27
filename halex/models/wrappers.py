@@ -257,8 +257,8 @@ class RidgeOnEnergiesAndLowdinByMO(RidgeOnEnergiesAndLowdin):
 
 class RidgeOnEnergiesAndLowdinByMO_2(RidgeOnEnergiesAndLowdin):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.skip_n_mo = kwargs.pop("skip_n_mo")
+        super().__init__(*args, **kwargs)
 
     def loss_fn(
         self,
