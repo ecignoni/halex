@@ -35,8 +35,8 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
         ao_labels: List[int],
         nelec_dict: Dict[str, float],
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        pred_focks = torch.stack(
-            blocks_to_dense(decouple_blocks(pred_blocks), frames, orbs)
+        pred_focks = blocks_to_dense(
+            decouple_blocks(pred_blocks), frames, orbs, vectorized=True
         )
         pred_eigvals = torch.linalg.eigvalsh(pred_focks)
         pred_lowdinq, _ = batched_orthogonal_lowdin_population(
@@ -56,7 +56,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
     def fit(
         self,
         train_dataset: Dataset,
-        epochs: int = 1000,
+        epochs: int = 1,
         optim_kwargs: Dict[str, Any] = dict(),
         verbose: int = 10,
         dump: int = 10,
@@ -133,7 +133,9 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
         # Here the dimension of eigenvalues and lowdin charges is, in general, different,
         # as molecule can have different atoms. We are then bound to use lists and loops
         # pure Python
-        pred_focks = blocks_to_dense(decouple_blocks(pred_blocks), frames, orbs)
+        pred_focks = blocks_to_dense(
+            decouple_blocks(pred_blocks), frames, orbs, vectorized=False
+        )
         pred_eigvals = [torch.linalg.eigvalsh(f) for f in pred_focks]
         pred_lowdinq = [
             orthogonal_lowdin_population(f, nelec_dict, ao)[0]
@@ -236,7 +238,7 @@ class RidgeOnEnergiesAndLowdinByMO(RidgeOnEnergiesAndLowdin):
         nelec_dict: Dict[str, float],
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         pred_focks = torch.stack(
-            blocks_to_dense(decouple_blocks(pred_blocks), frames, orbs)
+            blocks_to_dense(decouple_blocks(pred_blocks), frames, orbs, vectorized=True)
         )
         pred_eigvals = torch.linalg.eigvalsh(pred_focks)
         pred_lowdinq, _ = batched_orthogonal_lowdinbyMO_population(
@@ -271,7 +273,7 @@ class RidgeOnEnergiesAndLowdinByMO_2(RidgeOnEnergiesAndLowdin):
         nelec_dict: Dict[str, float],
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         pred_focks = torch.stack(
-            blocks_to_dense(decouple_blocks(pred_blocks), frames, orbs)
+            blocks_to_dense(decouple_blocks(pred_blocks), frames, orbs, vectorized=True)
         )
         pred_eigvals = torch.linalg.eigvalsh(pred_focks)
 
