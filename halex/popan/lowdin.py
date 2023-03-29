@@ -63,7 +63,7 @@ def lowdin_population(
     fock_tilde = _lowdin_orthogonalize(fock, ovlp)
     eps, c_tilde = torch.linalg.eigh(fock_tilde)
 
-    nmo = fock.shape[0]
+    nmo = fock.shape[-1]
     n_elec = _get_n_elec(nelec_dict, ao_labels)
 
     mo_occ = _get_mo_occ(nmo, n_elec)
