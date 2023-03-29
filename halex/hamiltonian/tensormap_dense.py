@@ -348,27 +348,26 @@ def _assign_same_species_antisymm(
         ham[jslice, islice] -= values_2norm
 
 
-def _vectorized_blocks_to_dense(blocks, frames, orbs):  # noqa: C901
+def _vectorized_blocks_to_dense(blocks, frames, orbs):
     # total number of orbitals per atom, orbital offset per atom
     orbs_tot, orbs_offset = _orbs_offsets(orbs)
 
     # indices of the block for each atom
     atom_blocks_idx = _atom_blocks_idx(frames, orbs_tot)
 
-    # init storage for dense hamiltonians
     # init storage for the dense hamiltonians
-    # ensure they live on GPU if tensormap values live on GPU
+    # note: this vectorized function relies on storing `dense`
+    #     as a torch tensor, i.e., all frames correspond to a
+    #     single molecule. we can then use the first frame to
+    #     set the size of the dense hamiltonians
+    norbs = sum(orbs_tot[ai] for ai in frames[0].numbers)
     device = blocks.block(0).values.device
-    dense = []
-    for f in frames:
-        norbs = 0
-        for ai in f.numbers:
-            norbs += orbs_tot[ai]
-        ham = torch.zeros(norbs, norbs, device=device)
-        dense.append(ham)
-    dense = torch.stack(dense)
+    dense = torch.zeros((len(frames), norbs, norbs), device=device)
 
-    # instantiate a new cache for hamiltonian slices
+    # instantiating the slices of each block in order to assign
+    # the values to the dense matrices is the slow part of this function
+    # here we use a simple caching mechanism to avoid computing the same
+    # slice if we have already computed it previously
     SLICES_CACHE = {}
 
     # loops over block types
@@ -385,44 +384,22 @@ def _vectorized_blocks_to_dense(blocks, frames, orbs):  # noqa: C901
         kj_offset = orbs_offset[(aj, nj, lj)]
         same_koff = ki_offset == kj_offset
 
-        islices = []
-        jslices = []
-        fslices = []
-        islices2 = []
-        jslices2 = []
-        # loops over samples (structure, i, j)
-        for A, i, j in block.samples:
-            # check if we have to update the frame and index
-            if A != cur_A:
-                cur_A = A
-                dense_idx += 1
-
-            # coordinates of the atom block in the matrix
-            ki_base, kj_base = atom_blocks_idx[(dense_idx, i, j)]
-
-            fslice, islice, jslice, islice2, jslice2 = _get_slices_cached(
-                ki_base,
-                kj_base,
-                ki_offset,
-                kj_offset,
-                li,
-                lj,
-                dense_idx,
-                idx,
-                SLICES_CACHE,
-            )
-
-            islices.append(islice)
-            jslices.append(jslice)
-            fslices.append(fslice)
-            islices2.append(islice2)
-            jslices2.append(jslice2)
-
-        fslices = np.concatenate(fslices)
-        islices = np.concatenate(islices)
-        islices2 = np.concatenate(islices2)
-        jslices = np.concatenate(jslices)
-        jslices2 = np.concatenate(jslices2)
+        # get the slices of the dense hamiltonian in order to assign
+        # the values from the tensormap
+        # this is the computationally expensive part of the function
+        # we use caching to speed up the process a bit
+        fslices, islices, jslices, islices2, jslices2 = _get_slices(
+            block=block,
+            cur_A=cur_A,
+            dense_idx=dense_idx,
+            atom_blocks_idx=atom_blocks_idx,
+            ki_offset=ki_offset,
+            kj_offset=kj_offset,
+            li=li,
+            lj=lj,
+            idx=idx,
+            slices_cache=SLICES_CACHE,
+        )
 
         if block_type == 0:
             values = block.values.reshape(-1)
@@ -454,24 +431,58 @@ def _vectorized_blocks_to_dense(blocks, frames, orbs):  # noqa: C901
     return dense
 
 
-# def _get_slices(ki_base, kj_base, ki_offset, kj_offset, li, lj, dense_idx):
-#     islice = np.arange(ki_base + ki_offset, ki_base + ki_offset + 2 * li + 1)
-#     islice = np.tile(islice, 2 * lj + 1)
-#
-#     jslice = np.arange(kj_base + kj_offset, kj_base + kj_offset + 2 * lj + 1).repeat(
-#         2 * li + 1
-#     )
-#
-#     fslice = np.array([dense_idx]).repeat((2 * li + 1) * (2 * lj + 1))
-#
-#     islice2 = np.arange(ki_base + kj_offset, ki_base + kj_offset + 2 * lj + 1)
-#     islice2 = np.tile(islice2, 2 * li + 1)
-#
-#     jslice2 = np.arange(kj_base + ki_offset, kj_base + ki_offset + 2 * li + 1).repeat(
-#         2 * lj + 1
-#     )
-#
-#     return fslice, islice, jslice, islice2, jslice2
+def _get_slices(
+    block,
+    cur_A,
+    dense_idx,
+    atom_blocks_idx,
+    ki_offset,
+    kj_offset,
+    li,
+    lj,
+    idx,
+    slices_cache,
+):
+    islices = []
+    jslices = []
+    fslices = []
+    islices2 = []
+    jslices2 = []
+    # loops over samples (structure, i, j)
+    for A, i, j in block.samples:
+        # check if we have to update the frame and index
+        if A != cur_A:
+            cur_A = A
+            dense_idx += 1
+
+        # coordinates of the atom block in the matrix
+        ki_base, kj_base = atom_blocks_idx[(dense_idx, i, j)]
+
+        fslice, islice, jslice, islice2, jslice2 = _get_slices_cached(
+            ki_base=ki_base,
+            kj_base=kj_base,
+            ki_offset=ki_offset,
+            kj_offset=kj_offset,
+            li=li,
+            lj=lj,
+            dense_idx=dense_idx,
+            block_idx=idx,
+            slices_cache=slices_cache,
+        )
+
+        islices.append(islice)
+        jslices.append(jslice)
+        fslices.append(fslice)
+        islices2.append(islice2)
+        jslices2.append(jslice2)
+
+    fslices = np.concatenate(fslices)
+    islices = np.concatenate(islices)
+    islices2 = np.concatenate(islices2)
+    jslices = np.concatenate(jslices)
+    jslices2 = np.concatenate(jslices2)
+
+    return fslices, islices, jslices, islices2, jslices2
 
 
 def _get_slices_cached(
@@ -481,7 +492,7 @@ def _get_slices_cached(
     # try to get the cached slices
     slices = slices_cache.get(key, None)
 
-    # if slices are not cached, compute them them
+    # if slices are not cached, compute them
     if slices is None:
         islice = np.arange(ki_base + ki_offset, ki_base + ki_offset + 2 * li + 1)
         islice = np.tile(islice, 2 * lj + 1)
