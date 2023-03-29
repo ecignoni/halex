@@ -23,7 +23,7 @@ def _get_n_elec(nelec_dict: Dict[int, float], ao_labels: List[Tuple[int, Any]]) 
         sum(
             [
                 nelec_dict[symb]
-                for idx, symb in np.unique([(i, s) for i, s, _ in ao_labels], axis=0)
+                for idx, symb in np.unique([(i, s) for i, s, *_ in ao_labels], axis=0)
             ]
         )
     )
@@ -42,7 +42,9 @@ def _get_occidx(mo_occ: torch.Tensor) -> torch.Tensor:
 def _get_atom_charges(
     nelec_dict: Dict[int, float], ao_labels: List[Tuple[int, Any]]
 ) -> torch.Tensor:
-    atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
+    atoms = np.array([(idx, symb) for idx, symb, *_ in ao_labels])
+    _, idxsort = np.unique(atoms, return_index=True, axis=0)
+    atoms = atoms[np.sort(idxsort)]
     return torch.DoubleTensor([nelec_dict[a] for (_, a) in atoms])
 
 

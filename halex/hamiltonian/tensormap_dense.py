@@ -6,8 +6,8 @@ from ..builder import TensorBuilder
 import numpy as np
 import torch
 
+from equistore import Labels, TensorMap, TensorBlock
 
-TensorMap = Any
 Atoms = Any
 
 
@@ -348,7 +348,9 @@ def _assign_same_species_antisymm(
         ham[jslice, islice] -= values_2norm
 
 
-def _vectorized_blocks_to_dense(blocks, frames, orbs):
+def _vectorized_blocks_to_dense(
+    blocks: TensorMap, frames: List[Atoms], orbs: Dict[int, List[List[int, int, int]]]
+) -> torch.Tensor:
     # total number of orbitals per atom, orbital offset per atom
     orbs_tot, orbs_offset = _orbs_offsets(orbs)
 
@@ -402,47 +404,49 @@ def _vectorized_blocks_to_dense(blocks, frames, orbs):
         )
 
         if block_type == 0:
-            values = block.values.reshape(-1)
+            values = torch.transpose(block.values, 1, 2).reshape(-1)
             dense[fslices, islices, jslices] = values
             if not same_koff:
                 dense[fslices, jslices, islices] = values
 
         elif block_type == 2:
-            values = block.values.reshape(-1)
+            values = torch.transpose(block.values, 1, 2).reshape(-1)
             dense[fslices, islices, jslices] = values
             dense[fslices, jslices, islices] = values
 
         elif block_type == 1:
             values = torch.transpose(block.values, 1, 2).reshape(-1) / (2**0.5)
+            valuesT = block.values.reshape(-1) / (2**0.5)
             dense[fslices, islices, jslices] += values
             dense[fslices, jslices, islices] += values
             if not same_koff:
-                dense[fslices, islices2, jslices2] += values
-                dense[fslices, jslices2, islices2] += values
+                dense[fslices, islices2, jslices2] += valuesT
+                dense[fslices, jslices2, islices2] += valuesT
 
         elif block_type == -1:
             values = torch.transpose(block.values, 1, 2).reshape(-1) / (2**0.5)
+            valuesT = block.values.reshape(-1) / (2**0.5)
             dense[fslices, islices, jslices] += values
             dense[fslices, jslices, islices] += values
             if not same_koff:
-                dense[fslices, islices2, jslices2] -= values
-                dense[fslices, jslices2, islices2] -= values
+                dense[fslices, islices2, jslices2] -= valuesT
+                dense[fslices, jslices2, islices2] -= valuesT
 
     return dense
 
 
 def _get_slices(
-    block,
-    cur_A,
-    dense_idx,
-    atom_blocks_idx,
-    ki_offset,
-    kj_offset,
-    li,
-    lj,
-    idx,
-    slices_cache,
-):
+    block: TensorBlock,
+    cur_A: int,
+    dense_idx: int,
+    atom_blocks_idx: Dict,
+    ki_offset: int,
+    kj_offset: int,
+    li: int,
+    lj: int,
+    idx: Labels,
+    slices_cache: Dict,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     islices = []
     jslices = []
     fslices = []
@@ -486,8 +490,16 @@ def _get_slices(
 
 
 def _get_slices_cached(
-    ki_base, kj_base, ki_offset, kj_offset, li, lj, dense_idx, block_idx, slices_cache
-):
+    ki_base: int,
+    kj_base: int,
+    ki_offset: int,
+    kj_offset: int,
+    li: int,
+    lj: int,
+    dense_idx: int,
+    block_idx: Labels,
+    slices_cache: Dict,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     key = (ki_base, kj_base, ki_offset, kj_offset, li, lj, block_idx)
     # try to get the cached slices
     slices = slices_cache.get(key, None)

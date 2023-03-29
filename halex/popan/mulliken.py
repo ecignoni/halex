@@ -14,7 +14,7 @@ def mulliken_population(fock, ovlp, nelec_dict, ao_labels):
         sum(
             [
                 nelec_dict[symb]
-                for idx, symb in np.unique([(i, s) for i, s, _ in ao_labels], axis=0)
+                for idx, symb in np.unique([(i, s) for i, s, *_ in ao_labels], axis=0)
             ]
         )
     )
@@ -25,7 +25,9 @@ def mulliken_population(fock, ovlp, nelec_dict, ao_labels):
     dm = 2 * torch.einsum("ia,ja->ij", c[:, occidx], c[:, occidx].conj())
 
     pop = torch.einsum("ij,ji->i", dm, ovlp)
-    atoms = np.unique([(idx, symb) for idx, symb, _ in ao_labels], axis=0)
+    atoms = np.array([(idx, symb) for idx, symb, *_ in ao_labels])
+    _, idxsort = np.unique(atoms, return_index=True, axis=0)
+    atoms = atoms[np.sort(idxsort)]
     chg = torch.Tensor([nelec_dict[a] for (i, a) in atoms])
     for i, lbl in enumerate(ao_labels):
         atom_idx = int(lbl[0])
