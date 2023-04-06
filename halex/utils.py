@@ -79,7 +79,7 @@ def recover_pyscf_l1(dense, frame, orbs, return_index=False):
                 iorb += 2 * l + 1
                 cur = (n, l)
     if return_index:
-        return idx
+        return np.array(idx)
     else:
         return dense[idx][:, idx]
 
