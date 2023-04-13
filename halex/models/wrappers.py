@@ -73,7 +73,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                 pred = self(x)
 
                 # loss + regularization
-                loss, eig_loss, low_loss, reg_loss = self.loss_fn(
+                loss, eig_loss, low_loss, reg_loss, *other_losses = self.loss_fn(
                     pred_blocks=pred,
                     frames=frames,
                     eigvals=eigvals,
@@ -94,6 +94,8 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                     losses["eig_loss"].append(eig_loss.item())
                     losses["low_loss"].append(low_loss.item())
                     losses["reg_loss"].append(reg_loss.item())
+                    for ii, oloss in enumerate(other_losses):
+                        losses[f"other_loss_{ii}"].append(oloss.item())
 
             # average loss in the batch
             with torch.no_grad():
@@ -247,13 +249,18 @@ class RidgeOnEnergiesAndLowdinByMO(RidgeOnEnergiesAndLowdin):
             ao_labels,
         )
 
+        tot_lowdinq = torch.sum(lowdinq, dim=1)
+        tot_pred_lowdinq = torch.sum(pred_lowdinq, dim=1)
+
         loss_a = torch.mean((eigvals - pred_eigvals) ** 2)
         loss_b = torch.mean((lowdinq - pred_lowdinq) ** 2)
+        loss_c = torch.mean((tot_lowdinq - tot_pred_lowdinq) ** 2)
         return (
-            1.5e6 * loss_a + 1e6 * loss_b + self.regloss_,
+            1.5e6 * loss_a + 1e6 * loss_b + self.regloss_ + 1e6 * loss_c,
             loss_a,
             loss_b,
             self.regloss_,
+            loss_c,
         )
 
 
