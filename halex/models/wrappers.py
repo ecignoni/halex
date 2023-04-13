@@ -237,8 +237,8 @@ class RidgeOnEnergiesAndLowdinByMO(RidgeOnEnergiesAndLowdin):
         ao_labels: List[int],
         nelec_dict: Dict[str, float],
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        pred_focks = torch.stack(
-            blocks_to_dense(decouple_blocks(pred_blocks), frames, orbs, vectorized=True)
+        pred_focks = blocks_to_dense(
+            decouple_blocks(pred_blocks), frames, orbs, vectorized=True
         )
         pred_eigvals = torch.linalg.eigvalsh(pred_focks)
         pred_lowdinq, _ = batched_orthogonal_lowdinbyMO_population(
