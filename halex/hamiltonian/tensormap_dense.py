@@ -257,6 +257,7 @@ def _blocks_to_dense(
 
             # coordinates of the atom block in the matrix
             ki_base, kj_base = atom_blocks_idx[(dense_idx, i, j)]
+
             # values to assign
             values = block_data[:, :, 0].reshape(2 * li + 1, 2 * lj + 1)
             # assign values
