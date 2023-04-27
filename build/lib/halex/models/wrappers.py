@@ -159,10 +159,10 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
         loss_b = torch.mean(loss_b)
 
         return (
-            1.5e6 * loss_a + 1e6 * loss_b + self.reg_loss_,
+            1.5e6 * loss_a + 1e6 * loss_b + self.regloss_,
             loss_a,
             loss_b,
-            self.reg_loss_,
+            self.regloss_,
         )
 
     def fit(
