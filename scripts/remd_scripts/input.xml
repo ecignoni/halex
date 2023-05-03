@@ -1,0 +1,76 @@
+<simulation verbosity='low' threading='true'>
+    <!-- 300000 * 0.5 fs = 150 ps -->
+    <total_steps> 300000 </total_steps>
+    <ffsocket mode='unix' name='dftbuff'>
+        <address> styrene </address>
+        <latency> 1.0000000e-02 </latency>
+        <slots> 4 </slots>
+        <timeout> 5 </timeout>
+    </ffsocket>
+    <output prefix='remd'>
+        <!-- 40 * 0.5 fs = 20 fs -->
+        <properties filename='md' stride='40' flush='10'> [step, time{picosecond}, conserved{electronvolt}, temperature{kelvin}, potential{electronvolt}, kinetic_cv{electronvolt}, kinetic_md{electronvolt}, ensemble_temperature{kelvin}] </properties>
+        <!-- 100 * 0.5 fs = 50 fs -->
+        <trajectory filename='pos' stride='100' format='xyz' flush='1' cell_units='angstrom'> positions{angstrom} </trajectory>
+        <checkpoint filename='checkpoint' stride='1000' overwrite='True'/>
+    </output>
+
+    <system_template >
+        <labels> [IDX, TEMP] </labels>
+        <instance> [  0, 300.0  ] </instance> 
+        <instance> [  1, 364.3  ] </instance>
+        <instance> [  2, 430.6  ] </instance>
+        <instance> [  3, 498.9  ] </instance>
+        <instance> [  4, 569.2  ] </instance>
+        <instance> [  5, 641.7  ] </instance>
+        <instance> [  6, 716.4  ] </instance>
+        <instance> [  7, 793.4  ] </instance>
+        <instance> [  8, 872.7  ] </instance>
+        <instance> [  9, 954.5  ] </instance>
+        <instance> [ 10, 1038.7 ] </instance>
+        <instance> [ 11, 1125.5 ] </instance>
+        <instance> [ 12, 1215.0 ] </instance>
+        <instance> [ 13, 1307.2 ] </instance>
+        <instance> [ 14, 1402.1 ] </instance>
+        <instance> [ 15, 1500.0 ] </instance>
+        <template>
+            <system prefix='IDX'>
+                <initialize nbeads='1'>
+                    <file mode='xyz' units='angstrom'> init.xyz </file>
+                    <velocities mode='thermal' units='kelvin'> TEMP </velocities>
+                </initialize>
+                <forces> <force forcefield='dftbuff'></force> </forces>
+                <ensemble>
+                    <temperature units='kelvin'> TEMP </temperature>
+                </ensemble>
+                <motion mode='dynamics'>
+                    <dynamics mode='nvt'>
+                        <thermostat mode='gle'>
+                            <A shape='(7,7)'>
+            [   1.533249866713e-4,    1.959322663379e-3,    1.985037928000e-4,    2.875616503110e-4,    9.755133676641e-5,   -3.804253355833e-6,   -6.054491052075e-5, 
+                5.923968590672e-5,    8.074287740564e-3,   -5.866114407186e-3,    9.205222753267e-4,    6.719561547068e-4,   -1.586358554817e-4,    3.001262131518e-4, 
+                2.875151223166e-4,    5.866114407186e-3,    2.700066729556e-3,    2.540395015664e-3,   -9.105477826198e-5,    5.787560270609e-4,   -1.199722081428e-3, 
+               -2.941348166739e-4,   -9.205222753267e-4,   -2.540395015664e-3,    2.661656937342e-5,   -7.561619872520e-6,    6.900071995791e-5,    9.286574707341e-5, 
+               -9.760913467896e-5,   -6.719561547068e-4,    9.105477826198e-5,    7.561619872520e-6,    1.402567678033e-7,   -2.284914639732e-5,   -7.913486492183e-6, 
+                3.799719725490e-6,    1.586358554817e-4,   -5.787560270609e-4,   -6.900071995791e-5,    2.284914639732e-5,    4.476731731668e-8,    5.241513958367e-5, 
+                6.054737769091e-5,   -3.001262131518e-4,    1.199722081428e-3,   -9.286574707341e-5,    7.913486492183e-6,   -5.241513958367e-5,   3.159953013350e-12
+             ]
+                            </A>
+                        </thermostat>
+                    <timestep units='femtosecond'> .50 </timestep>
+                    </dynamics>
+                </motion>
+            </system>
+        </template>
+    </system_template>
+
+    <smotion mode='remd'>
+        <remd>
+            <!-- 4 * 0.5 fs = 2 fs -->
+            <stride> 4 </stride>
+            <swapfile> remd_idx </swapfile>
+        </remd>
+    </smotion>
+
+
+</simulation>

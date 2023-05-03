@@ -1,9 +1,4 @@
 """
-Sample with FPS on 0-SOAP features.
-Pretty much everything hardcoded.
-Extracts 1000 samples, the first one is the starting structure in the simulation.
-Seed is fixed.
-
 Run, e.g., as:
 
 $ python samples_replica.py -i SRT_0_remd.pos_0.xyz -o samples_SOAP0_FPS_300K.xyz

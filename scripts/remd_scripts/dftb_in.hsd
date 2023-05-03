@@ -1,0 +1,76 @@
+Geometry = GenFormat {
+    <<< "init.gen"
+}
+
+# Socket controlled DFTB+
+Driver = Socket {
+    File="styrene" # File name, i.e., /tmp/ipi_dftb
+    Protocol = i-PI {} # i-PI interface protocol
+    MaxSteps = -1 # keep running until i-PI terminates the run
+}
+
+# DFTB+ model choices
+Hamiltonian = DFTB {
+
+    # ======================
+    # Use the "DFTB3" model.
+    # 
+    ThirdOrderFull = Yes
+    DampXH = Yes
+    DampXHExponent = 4.0
+    HubbardDerivs = {
+        H = -0.1857
+        C = -0.1492
+    }
+    # ======================
+
+    # ======================
+    # 3OB parameters
+    # (also required ThirdOrderFull to be active)
+    #
+    SlaterKosterFiles = Type2FileNames{
+        Prefix = ../dftb-3ob-skfiles/
+        Separator = "-"
+        Suffix = ".skf"
+    }
+    # ======================
+
+    # ======================
+    # Universal Force Field
+    # 
+    Dispersion = LennardJones {
+        Parameters = UFFParameters{}
+    }
+    # ======================
+
+    MaxAngularMomentum = {
+        H = "s"
+        C = "p"
+    }
+    SCC = Yes
+
+    Filling = Fermi{
+        Temperature[K] = 300
+    }
+    KPointsAndWeights[absolute] = {
+        0.0 0.0 0.0 1.0
+    }
+
+}
+
+Options {
+    # Minimize output during run
+    WriteResultsTag = No
+    WriteDetailedOut = No
+}
+
+Analysis = {
+    # Minimize analysis within DFTB+
+    WriteBandOut = No
+    MullikenAnalysis = No
+}
+
+ParserOptions = {
+    # For forward compatibility, specifiy the DFTB+ input version
+    ParserVersion = 5
+}
