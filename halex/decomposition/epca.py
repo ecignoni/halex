@@ -198,10 +198,13 @@ class EquivariantPCA:
         self._check_is_fitted()
         tosave = {}
         tosave["keys"] = []
-        for key, mean, comp in zip(self.keys_, self.mean_, self.components_):
+        for key, mean, comp, ret in zip(
+            self.keys_, self.mean_, self.components_, self.retained_components_
+        ):
             tosave["keys"].append(key)
             tosave[f"{key}_mean"] = np.array(mean)
             tosave[f"{key}_components"] = comp.detach().numpy()
+            tosave[f"{key}_retained_components"] = ret.detach().numpy()
         np.savez(fname, **tosave)
 
     def load(self, fname):
@@ -209,9 +212,11 @@ class EquivariantPCA:
         keys = [k for k in saved["keys"]]
         means = [saved[f"{key}_mean"] for key in keys]
         comps = [torch.from_numpy(saved[f"{key}_components"]) for key in keys]
+        rets = [torch.from_numpy(saved[f"{key}_retained_components"]) for key in keys]
         self.keys_ = keys
         self.mean_ = means
         self.components_ = comps
+        self.retained_components_ = rets
         return self
 
 
