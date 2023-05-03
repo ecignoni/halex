@@ -30,7 +30,7 @@ create_folder() {
     local folder=$1
 
     if [ ! -d $folder ] ; then
-        mkdir -p $visual
+        mkdir -p $folder
     fi
 }
 
