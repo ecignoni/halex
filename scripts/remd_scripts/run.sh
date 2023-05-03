@@ -68,7 +68,7 @@ conda activate dftbp
 cat $PBS_NODEFILE > ${OrigDir}/pbs_node
 
 # create local folder if not present
-crate_folder $WorkDir
+create_folder $WorkDir
 
 # copy content locally on the node
 rsync -a $OrigDir/* $WorkDir/
