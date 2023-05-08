@@ -7,6 +7,7 @@ from ..popan import (
     batched_orthogonal_lowdin_population,
     orthogonal_lowdin_population,
     batched_orthogonal_lowdinbyMO_population,
+    orthogonal_lowdinbyMO_population,
 )
 from ..hamiltonian import blocks_to_dense, decouple_blocks
 
@@ -223,6 +224,64 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                     self.dump_state()
 
         return self
+
+
+class RidgeOnEnergiesAndLowdinMultipleMoleculesByMO(
+    RidgeOnEnergiesAndLowdinMultipleMolecules
+):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def loss_fn(
+        self,
+        pred_blocks: TensorMap,
+        frames: List[Atoms],
+        eigvals: List[torch.Tensor],
+        lowdinq: List[torch.Tensor],
+        orbs: Dict[int, List[Tuple[int, int, int]]],
+        ao_labels: List[List[Any]],
+        nelec_dict: Dict[str, float],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # Here the dimension of eigenvalues and lowdin charges is, in general, different,
+        # as molecule can have different atoms. We are then bound to use lists and loops
+        # pure Python
+        pred_focks = blocks_to_dense(
+            decouple_blocks(pred_blocks), frames, orbs, vectorized=False
+        )
+        pred_eigvals = [torch.linalg.eigvalsh(f) for f in pred_focks]
+        pred_lowdinq = [
+            orthogonal_lowdinbyMO_population(f, nelec_dict, ao)[0]
+            for f, ao in zip(pred_focks, ao_labels)
+        ]
+
+        tot_lowdinq = [torch.sum(q, dim=0) for q in lowdinq]
+        tot_pred_lowdinq = [torch.sum(q, dim=0) for q in pred_lowdinq]
+
+        loss_a = 0.0
+        for pred_eigval, eigval in zip(pred_eigvals, eigvals):
+            # mean over atoms
+            loss_a += torch.mean((pred_eigval - eigval) ** 2)
+        # mean over samples
+        loss_a = torch.mean(loss_a)
+
+        loss_b = 0.0
+        for pred_lowq, lowq in zip(pred_lowdinq, lowdinq):
+            # mean over atoms
+            loss_b += torch.mean((pred_lowq - lowq) ** 2)
+        # mean over samples
+        loss_b = torch.mean(loss_b)
+
+        loss_c = 0.0
+        for pred_lowq, lowq in zip(tot_pred_lowdinq, tot_lowdinq):
+            loss_c += torch.mean((pred_lowq - lowq) ** 2)
+        loss_c = torch.mean(loss_c)
+
+        return (
+            1.5e6 * loss_a + 1e6 * loss_b + self.regloss_ + 1e6 * loss_c,
+            loss_a,
+            loss_b,
+            self.regloss_,
+        )
 
 
 class RidgeOnEnergiesAndLowdinByMO(RidgeOnEnergiesAndLowdin):
