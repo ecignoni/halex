@@ -235,29 +235,52 @@ class ClebschGordanReal:
 
 
 def _real2complex(L):
+    """transformation matrix between spherical harmonics
+
+    Computes the transformation matrix that goes from a set
+    of real spherical harmonics, ordered as:
+
+        (l, -l), (l, -l + 1), ..., (l, l - 1), (l, l)
+
+    to a set of complex spherical harmonics (in the same order).
+    The transformation matrix can be found in several places,
+    e.g.:
+    https://en.wikipedia.org/wiki/Spherical_harmonics#Real_form
+
+    Taking the conjugate transpose of the matrix gives the
+    transformation from complex to real spherical harmonics.
+    As an example, using scipy:
+
+    >>> from scipy.special import sph_harm
+    >>> U = _real2complex(1)
+    >>> # complex spherical harmonics, ordered from m=-l to m=l
+    >>> comp_sph = np.array([
+    ... sph_harm(-1, 1, 0.2, 0.2),
+    ... sph_harm(0, 1, 0.2, 0.2),
+    ... sph_harm(1, 1, 0.2, 0.2)
+    ... ])
+    >>> real_sph = np.conjugate(U).T @ comp_sph
+    >>> assert np.max(abs(comp_sph - U @ real_sph)) < 1e-15
     """
-    Computes a matrix that can be used to convert from real to complex-valued
-    spherical harmonics(coefficients) of order L.
+    mult = 2 * L + 1
+    mat = np.zeros((mult, mult), dtype=np.complex128)
+    # m = 0
+    mat[L, L] = 1.0
 
-    It's meant to be applied to the left, ``real2complex @ [-L..L]``.
-    """
-    result = np.zeros((2 * L + 1, 2 * L + 1), dtype=np.complex128)
+    if L == 0:
+        return mat
 
-    I_SQRT_2 = 1.0 / np.sqrt(2)
+    isqrt2 = 1.0 / 2**0.5
+    for m in range(1, L + 1):
+        # m > 0
+        mat[L + m, L + m] = isqrt2 * (-1) ** m
+        mat[L + m, L - m] = isqrt2 * 1j * (-1) ** m
 
-    for m in range(-L, L + 1):
-        if m < 0:
-            result[L - m, L + m] = I_SQRT_2 * 1j * (-1) ** m
-            result[L + m, L + m] = -I_SQRT_2 * 1j
+        # m < 0
+        mat[L - m, L + m] = isqrt2
+        mat[L - m, L - m] = -isqrt2 * 1j
 
-        if m == 0:
-            result[L, L] = 1.0
-
-        if m > 0:
-            result[L + m, L + m] = I_SQRT_2 * (-1) ** m
-            result[L - m, L + m] = I_SQRT_2
-
-    return result
+    return mat
 
 
 def _complex_clebsch_gordan_matrix(l1, l2, L):
