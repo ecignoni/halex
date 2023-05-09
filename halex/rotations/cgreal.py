@@ -1,3 +1,6 @@
+from __future__ import annotations
+from typing import Dict
+
 import numpy as np
 import wigners
 import torch
@@ -20,24 +23,7 @@ class ClebschGordanReal:
                 for L in range(
                     max(l1, l2) - min(l1, l2), min(self._l_max, (l1 + l2)) + 1
                 ):
-                    complex_cg = _complex_clebsch_gordan_matrix(l1, l2, L)
-
-                    real_cg = (r2c[l1].T @ complex_cg.reshape(2 * l1 + 1, -1)).reshape(
-                        complex_cg.shape
-                    )
-
-                    real_cg = real_cg.swapaxes(0, 1)
-                    real_cg = (r2c[l2].T @ real_cg.reshape(2 * l2 + 1, -1)).reshape(
-                        real_cg.shape
-                    )
-                    real_cg = real_cg.swapaxes(0, 1)
-
-                    real_cg = real_cg @ c2r[L].T
-
-                    if (l1 + l2 + L) % 2 == 0:
-                        rcg = np.real(real_cg)
-                    else:
-                        rcg = np.imag(real_cg)
+                    rcg = _real_clebsch_gordan_matrix(l1, l2, L, r2c=r2c, c2r=c2r)
 
                     new_cg = []
                     for M in range(2 * L + 1):
@@ -234,7 +220,7 @@ class ClebschGordanReal:
         return decoupled
 
 
-def _real2complex(L):
+def _real2complex(L: int) -> np.ndarray:
     """transformation matrix between spherical harmonics
 
     Computes the transformation matrix that goes from a set
@@ -283,7 +269,7 @@ def _real2complex(L):
     return mat
 
 
-def _complex_clebsch_gordan_matrix(l1, l2, L):
+def _complex_clebsch_gordan_matrix(l1: int, l2: int, L: int) -> np.ndarray:
     r"""clebsch-gordan matrix
 
     Computes the Clebsch-Gordan (CG) matrix for
@@ -320,8 +306,43 @@ def _complex_clebsch_gordan_matrix(l1, l2, L):
     ... [3.23604319-1.69568664e-16j 3.23604319+7.31506235e-17j
     ...  3.23604319+0.00000000e+00j 3.23604319-7.31506235e-17j
     ...  3.23604319+1.69568664e-16j]
+
+    Args:
+        l1: l number for the first set of spherical harmonics
+        l2: l number for the second set of spherical harmonics
+        L: l number for the third set of spherical harmonics
+    Returns:
+        real_cg: CG matrix for transforming complex-valued spherical harmonics
     """
     if np.abs(l1 - l2) > L or np.abs(l1 + l2) < L:
         return np.zeros((2 * l1 + 1, 2 * l2 + 1, 2 * L + 1), dtype=np.double)
     else:
         return wigners.clebsch_gordan_array(l1, l2, L)
+
+
+def _real_clebsch_gordan_matrix(
+    l1: int, l2: int, L: int, r2c: Dict[int, np.ndarray], c2r: Dict[int, np.ndarray]
+) -> np.ndarray:
+    """clebsch gordan matrix
+
+    Clebsch Gordan (CG) matrix for real values spherical harmonics,
+    constructed by contracting the CG matrix for complex-valued
+    spherical harmonics with the matrices that transform between
+    real-valued and complex-valued spherical harmonics.
+
+    Args:
+        l1: l number for the first set of spherical harmonics
+        l2: l number for the second set of spherical harmonics
+        L: l number for the third set of spherical harmonics
+        r2c: transformation matrices from real to complex spherical harmonics
+        c2r: transformation matrices from complex to real spherical harmonics
+    Returns:
+        real_cg: CG matrix for transforming real-valued spherical harmonics
+    """
+    complex_cg = _complex_clebsch_gordan_matrix(l1, l2, L)
+    real_cg = np.einsum("ijk,il,jm,nk->lmn", complex_cg, r2c[l1], r2c[l2], c2r[L])
+
+    if (l1 + l2 + L) % 2 == 0:
+        return np.real(real_cg)
+    else:
+        return np.imag(real_cg)
