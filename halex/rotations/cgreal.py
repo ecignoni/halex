@@ -293,12 +293,14 @@ def _complex_clebsch_gordan_matrix(l1, l2, L):
         < l1 m1 l2 m2 | L M >
 
     where the first axis loops over m1, the second loops over m2,
-    and the third one loops over M.
+    and the third one loops over M. The matrix is real.
 
     For example, using the relation:
 
         | l1 l2 L M > = \sum_{m1, m2} <l1 m1 l2 m2 | L M > | l1 m1 > | l2 m2 >
 
+    (https://en.wikipedia.org/wiki/Clebsch–Gordan_coefficients, section
+     "Formal definition of Clebsch-Gordan coefficients", eq 2)
     one can obtain the spherical harmonics L from two sets of
     spherical harmonics with l1 and l2 (up to a normalization factor).
     E.g.:
