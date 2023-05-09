@@ -172,9 +172,11 @@ class ClebschGordanReal:
             coupled = self.couple(coupled, iterate - 1)
         return coupled
 
-    def decouple(self, coupled, iterate=0):
-        """
+    def decouple(self, coupled: Dict, iterate: int = 0) -> Union[Dict, Array]:
+        r"""
         Undoes the transformation enacted by couple.
+
+        |l1 m1> |l2 m2> = \sum_{m1 m2} <L M |l1 m1 l2 m2> |l1 l2 L M>
         """
 
         decoupled = {}
