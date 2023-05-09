@@ -284,6 +284,41 @@ def _real2complex(L):
 
 
 def _complex_clebsch_gordan_matrix(l1, l2, L):
+    r"""clebsch-gordan matrix
+
+    Computes the Clebsch-Gordan (CG) matrix for
+    transforming complex-valued spherical harmonics.
+    The CG matrix is computed as a 3D array of elements
+
+        < l1 m1 l2 m2 | L M >
+
+    where the first axis loops over m1, the second loops over m2,
+    and the third one loops over M.
+
+    For example, using the relation:
+
+        | l1 l2 L M > = \sum_{m1, m2} <l1 m1 l2 m2 | L M > | l1 m1 > | l2 m2 >
+
+    one can obtain the spherical harmonics L from two sets of
+    spherical harmonics with l1 and l2 (up to a normalization factor).
+    E.g.:
+
+    >>> from scipy.special import sph_harm
+    >>> C_112 = _complex_clebsch_gordan_matrix(1, 1, 2)
+    >>> comp_sph_1 = np.array([
+    ... sph_harm(m, 1, 0.2, 0.2) for m in range(-1, 1+1)
+    ... ])
+    >>> # obtain the (unnormalized) spherical harmonics with
+    >>> l = 2 by contraction over m1 and m2
+    >>> comp_sph_2_u = np.einsum("ijk,i,j->k", C_112, comp_sph_1, comp_sph_2)
+    >>> # we can check that they differ from the spherical harmonics by a
+    >>> # constant factor
+    >>> comp_sph_2 = np.array([sph_harm(m, 2, 0.2, 0.2) for m in range(-2, 2+1)])
+    >>> print(comp_sph2 / comp_sph_2_u)
+    ... [3.23604319-1.69568664e-16j 3.23604319+7.31506235e-17j
+    ...  3.23604319+0.00000000e+00j 3.23604319-7.31506235e-17j
+    ...  3.23604319+1.69568664e-16j]
+    """
     if np.abs(l1 - l2) > L or np.abs(l1 + l2) < L:
         return np.zeros((2 * l1 + 1, 2 * l2 + 1, 2 * L + 1), dtype=np.double)
     else:
