@@ -24,10 +24,16 @@ def couple_blocks(blocks, cg=None):
     )
     for idx, block in blocks:
         block_type, ai, ni, li, aj, nj, lj = tuple(idx)
+
+        # Moves the components at the end as cg.couple assumes so
         decoupled = torch.moveaxis(block.values, -1, -2).reshape(
             (len(block.samples), len(block.properties), 2 * li + 1, 2 * lj + 1)
         )
+        # selects the (only) key in the coupled dictionary (l1 and l2
+        # that gave birth to the coupled terms L, with L going from
+        # |l1 - l2| up to |l1 + l2|
         coupled = cg.couple(decoupled)[(li, lj)]
+
         for L in coupled:
             block_idx = tuple(idx) + (L,)
             # skip blocks that are zero because of symmetry
@@ -37,11 +43,13 @@ def couple_blocks(blocks, cg=None):
                     parity == 1 and block_type == -1
                 ):
                     continue
+
             new_block = block_builder.add_block(
                 keys=block_idx,
                 properties=np.asarray([[0]], dtype=np.int32),
                 components=[_components_idx(L).reshape(-1, 1)],
             )
+
             new_block.add_samples(
                 labels=block.samples.view(dtype=np.int32).reshape(
                     block.samples.shape[0], -1
