@@ -247,7 +247,10 @@ def _blocks_to_dense(
         same_koff = ki_offset == kj_offset
 
         # loops over samples (structure, i, j)
-        for (A, i, j), block_data in zip(block.samples, block.values):
+        for sample, block_data in zip(block.samples, block.values):
+            A = sample["structure"]
+            i = sample["center"]
+            j = sample["neighbor"]
             # check if we have to update the frame and index
             if A != cur_A:
                 cur_A = A

@@ -66,8 +66,13 @@ def decouple_blocks(blocks, cg=None):
         cg = ClebschGordanReal(lmax)
 
     block_builder = TensorBuilder(
-        ["block_type", "a_i", "n_i", "l_i", "a_j", "n_j", "l_j"],
-        ["structure", "center", "neighbor"],
+        # last key name is L, we remove it here
+        blocks.keys.names[:-1],
+        # sample_names from the blocks
+        # this is because, e.g. for multiple molecules, we
+        # may have an additional sample name indexing the
+        # molecule id
+        blocks.sample_names,
         [["m1"], ["m2"]],
         ["value"],
     )
