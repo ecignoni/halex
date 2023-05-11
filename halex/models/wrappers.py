@@ -90,6 +90,17 @@ def _loss_eigenvalues_lowdinq_vectorized(
     )
 
 
+def _maybe_discard_some_mo_charges(
+    mo_indices: np.ndarray, lowdinq: torch.Tensor, pred_lowdinq: torch.Tensor
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    if mo_indices is None:
+        pass
+    else:
+        lowdinq = lowdinq[:, mo_indices]
+        pred_lowdinq = pred_lowdinq[:, mo_indices]
+    return lowdinq, pred_lowdinq
+
+
 def _loss_eigenvalues_lowdinqbyMO_vectorized(
     pred_blocks: TensorMap,
     frames: List[Atoms],
@@ -99,10 +110,11 @@ def _loss_eigenvalues_lowdinqbyMO_vectorized(
     ao_labels: List[int],
     nelec_dict: Dict[str, float],
     regloss: torch.Tensor,
-    weight_eigvals=1.0,
-    weight_lowdinq=1.0,
-    weight_lowdinq_tot=1.0,
-    weight_regloss=1.0,
+    weight_eigvals: float = 1.0,
+    weight_lowdinq: float = 1.0,
+    weight_lowdinq_tot: float = 1.0,
+    weight_regloss: float = 1.0,
+    mo_indices: np.ndarray = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     r"""combined loss on MO energies and Lowdin charges MO by MO
 
@@ -137,8 +149,9 @@ def _loss_eigenvalues_lowdinqbyMO_vectorized(
     tot_lowdinq = torch.sum(lowdinq, dim=1)
     tot_pred_lowdinq = torch.sum(pred_lowdinq, dim=1)
 
-    # TODO: add _maybe_select_mo_indices that selects only certain MOs
-    #       (e.g., to not include core MOs, etc)
+    lowdinq, pred_lowdinq = _maybe_discard_some_mo_charges(
+        mo_indices, lowdinq, pred_lowdinq
+    )
 
     # MSE on energies, lowdin charges per MO, total lowdin charges
     loss_eigvals = torch.mean((eigvals - pred_eigvals) ** 2)
@@ -607,42 +620,3 @@ class RidgeOnEnergiesAndLowdinMultipleMoleculesByMO(
             weight_lowdinq_tot=weight_lowdinq_tot,
             weight_regloss=weight_regloss,
         )
-
-
-# class RidgeOnEnergiesAndLowdinByMO_2(RidgeOnEnergiesAndLowdin):
-#     def __init__(self, *args, **kwargs):
-#         self.skip_n_mo = kwargs.pop("skip_n_mo")
-#         super().__init__(*args, **kwargs)
-#
-#     def loss_fn(
-#         self,
-#         pred_blocks: TensorMap,
-#         frames: List[Atoms],
-#         eigvals: torch.Tensor,
-#         lowdinq: torch.Tensor,
-#         orbs: Dict[int, List],
-#         ao_labels: List[int],
-#         nelec_dict: Dict[str, float],
-#     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-#         pred_focks = _predict_focks_vectorized(pred_blocks, frames=frames, orbs=orbs)
-#
-#         pred_eigvals = torch.linalg.eigvalsh(pred_focks)
-#
-#         # lowdin MO by MO
-#         pred_lowdinq, _ = batched_orthogonal_lowdinbyMO_population(
-#             pred_focks,
-#             nelec_dict,
-#             ao_labels,
-#         )
-#
-#         loss_a = torch.mean((eigvals - pred_eigvals) ** 2)
-#         loss_b = torch.mean(
-#             (lowdinq[:, self.skip_n_mo :] - pred_lowdinq[:, self.skip_n_mo :]) ** 2
-#         )
-#
-#         return (
-#             1.5e6 * loss_a + 1e6 * loss_b + self.regloss_,
-#             loss_a,
-#             loss_b,
-#             self.regloss_,
-#         )
