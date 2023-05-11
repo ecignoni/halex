@@ -16,8 +16,9 @@ from tqdm import tqdm
 
 from equistore import TensorMap
 
-Dataset = Any
 Atoms = Any
+Dataset = Any
+Optimizer = Any
 
 
 def _predict_focks_vectorized(pred_blocks, frames, orbs):
@@ -162,15 +163,21 @@ def _loss_eigenvalues_lowdinqbyMO_vectorized(
 
 
 def _accumulate_batch_losses(
-    losses_dict, total_loss, eig_loss, low_loss, reg_loss, *other_losses
+    losses_dict,
+    total_loss,
+    eig_loss,
+    low_loss,
+    reg_loss,
+    *other_losses,
+    prefix="",
 ):
     with torch.no_grad():
-        losses_dict["total"].append(total_loss.item())
-        losses_dict["eig_loss"].append(eig_loss.item())
-        losses_dict["low_loss"].append(low_loss.item())
-        losses_dict["reg_loss"].append(reg_loss.item())
+        losses_dict[f"{prefix}total"].append(total_loss.item())
+        losses_dict[f"{prefix}eig_loss"].append(eig_loss.item())
+        losses_dict[f"{prefix}low_loss"].append(low_loss.item())
+        losses_dict[f"{prefix}reg_loss"].append(reg_loss.item())
         for i, loss in enumerate(other_losses):
-            losses_dict[f"other_loss_{i}"].append(loss.item())
+            losses_dict[f"{prefix}other_loss_{i}"].append(loss.item())
         return losses_dict
 
 
@@ -242,9 +249,77 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
             weight_regloss=weight_regloss,
         )
 
+    def _train_step(
+        self, train_dataset: Dataset, optimizer: Optimizer, loss_kwargs: Dict[str, Any]
+    ) -> Dict[str, torch.Tensor]:
+        losses = defaultdict(list)
+        for idx in range(len(train_dataset)):
+            x, frames, eigvals, lowdinq = train_dataset[idx]
+
+            optimizer.zero_grad()
+            pred = self(x)
+
+            # loss + regularization
+            loss, *other_losses = self.loss_fn(
+                pred_blocks=pred,
+                frames=frames,
+                eigvals=eigvals,
+                lowdinq=lowdinq,
+                orbs=train_dataset.orbs,
+                ao_labels=train_dataset.ao_labels,
+                nelec_dict=train_dataset.nelec_dict,
+                **loss_kwargs,
+            )
+
+            loss.backward()
+            optimizer.step()
+
+            # accumulate losses in the batch
+            losses = _accumulate_batch_losses(
+                losses, loss, *other_losses, prefix="train_"
+            )
+
+        # average loss in the batch
+        with torch.no_grad():
+            losses = _compute_average_losses(losses)
+
+        return losses
+
+    @torch.no_grad()
+    def _validation_step(
+        self, valid_dataset: Dataset, loss_kwargs: Dict[str, Any]
+    ) -> Dict[str, torch.Tensor]:
+        losses = defaultdict(list)
+        for idx in range(len(valid_dataset)):
+            x, frames, eigvals, lowdinq = valid_dataset[idx]
+
+            pred = self(x)
+
+            # loss + regularization
+            loss, *other_losses = self.loss_fn(
+                pred_blocks=pred,
+                frames=frames,
+                eigvals=eigvals,
+                lowdinq=lowdinq,
+                orbs=valid_dataset.orbs,
+                ao_labels=valid_dataset.ao_labels,
+                nelec_dict=valid_dataset.nelec_dict,
+                **loss_kwargs,
+            )
+
+            # accumulate losses in the batch
+            losses = _accumulate_batch_losses(
+                losses, loss, *other_losses, prefix="valid_"
+            )
+
+        # average loss in the batch
+        losses = _compute_average_losses(losses)
+        return losses
+
     def fit(
         self,
         train_dataset: Dataset,
+        valid_dataset: Dataset = None,
         epochs: int = 1,
         optim_kwargs: Dict[str, Any] = dict(),
         verbose: int = 10,
@@ -267,38 +342,18 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
 
         iterator = tqdm(range(epochs), ncols=120)
         for epoch in iterator:
-            losses = defaultdict(list)
-            for idx in range(len(train_dataset)):
-                x, frames, eigvals, lowdinq = train_dataset[idx]
+            losses = self._train_step(train_dataset, optimizer, loss_kwargs)
 
-                optimizer.zero_grad()
-                pred = self(x)
+            if valid_dataset is not None:
+                valid_losses = self._validation_step(valid_dataset, loss_kwargs)
+                losses |= valid_losses
 
-                # loss + regularization
-                loss, *other_losses = self.loss_fn(
-                    pred_blocks=pred,
-                    frames=frames,
-                    eigvals=eigvals,
-                    lowdinq=lowdinq,
-                    orbs=train_dataset.orbs,
-                    ao_labels=train_dataset.ao_labels,
-                    nelec_dict=train_dataset.nelec_dict,
-                    **loss_kwargs,
-                )
-
-                loss.backward()
-                optimizer.step()
-
-                # accumulate losses in the batch
-                losses = _accumulate_batch_losses(losses, loss, *other_losses)
-
-            # average loss in the batch
             with torch.no_grad():
-                losses = _compute_average_losses(losses)
-
                 # update progress bar and history
                 if epoch % verbose == 0:
-                    iterator.set_postfix(**losses)
+                    iterator.set_postfix(
+                        {k: v for k, v in losses.items() if k.endswith("total")}
+                    )
                     self.update_history(losses)
 
                 if epoch % dump == 0:
@@ -403,9 +458,78 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
             weight_regloss=weight_regloss,
         )
 
+    def _train_step(
+        self,
+        train_datasets: List[Dataset],
+        optimizer: Optimizer,
+        loss_kwargs: Dict[str, Any],
+    ) -> Dict[str, torch.Tensor]:
+        losses = defaultdict(list)
+
+        for train_dataset in train_datasets:
+            for idx in range(len(train_dataset)):
+                x, frames, eigvals, lowdinq = train_dataset[idx]
+
+                optimizer.zero_grad()
+                pred = self(x)
+
+                loss, *other_losses = self.loss_fn(
+                    pred_blocks=pred,
+                    frames=frames,
+                    eigvals=eigvals,
+                    lowdinq=lowdinq,
+                    orbs=train_dataset.orbs,
+                    ao_labels=train_dataset.ao_labels,
+                    nelec_dict=train_dataset.nelec_dict,
+                    **loss_kwargs,
+                )
+
+                loss.backward()
+                optimizer.step()
+
+                losses = _accumulate_batch_losses(
+                    losses, loss, *other_losses, prefix="train_"
+                )
+
+        with torch.no_grad():
+            losses = _compute_average_losses(losses)
+
+        return losses
+
+    @torch.no_grad()
+    def _validation_step(
+        self, valid_datasets: List[Dataset], loss_kwargs: Dict[str, Any]
+    ) -> Dict[str, torch.Tensor]:
+        losses = defaultdict(list)
+
+        for valid_dataset in valid_datasets:
+            for idx in range(len(valid_dataset)):
+                x, frames, eigvals, lowdinq = valid_dataset[idx]
+
+                pred = self(x)
+
+                loss, *other_losses = self.loss_fn(
+                    pred_blocks=pred,
+                    frames=frames,
+                    eigvals=eigvals,
+                    lowdinq=lowdinq,
+                    orbs=valid_dataset.orbs,
+                    ao_labels=valid_dataset.ao_labels,
+                    nelec_dict=valid_dataset.nelec_dict,
+                    **loss_kwargs,
+                )
+
+                losses = _accumulate_batch_losses(
+                    losses, loss, *other_losses, prefix="valid_"
+                )
+
+        losses = _compute_average_losses(losses)
+        return losses
+
     def fit(
         self,
         train_datasets: List[Dataset],
+        valid_datasets: List[Dataset] = None,
         epochs: int = 1000,
         optim_kwargs: Dict[str, Any] = dict(),
         verbose: int = 10,
@@ -428,37 +552,19 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
 
         iterator = tqdm(range(epochs), ncols=120)
         for epoch in iterator:
-            losses = defaultdict(list)
-            for train_dataset in train_datasets:
-                for idx in range(len(train_dataset)):
-                    x, frames, eigvals, lowdinq = train_dataset[idx]
+            losses = self._train_step(train_datasets, optimizer, loss_kwargs)
 
-                    optimizer.zero_grad()
-                    pred = self(x)
-
-                    loss, *other_losses = self.loss_fn(
-                        pred_blocks=pred,
-                        frames=frames,
-                        eigvals=eigvals,
-                        lowdinq=lowdinq,
-                        orbs=train_dataset.orbs,
-                        ao_labels=train_dataset.ao_labels,
-                        nelec_dict=train_dataset.nelec_dict,
-                        **loss_kwargs,
-                    )
-
-                    loss.backward()
-                    optimizer.step()
-
-                    losses = _accumulate_batch_losses(losses, loss, *other_losses)
+            if valid_datasets is not None:
+                valid_losses = self._validation_step(valid_datasets, loss_kwargs)
+                losses |= valid_losses
 
             # average loss over batches and molecules
             with torch.no_grad():
-                losses = _compute_average_losses(losses)
-
                 # update progress bar and history
                 if epoch % verbose == 0:
-                    iterator.set_postfix(**losses)
+                    iterator.set_postfix(
+                        {k: v for k, v in losses.items() if k.endswith("total")}
+                    )
                     self.update_history(losses)
 
                 if epoch % dump == 0:
