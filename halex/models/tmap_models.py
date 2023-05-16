@@ -57,7 +57,11 @@ class RidgeModel(torch.nn.Module):
         "returns core_features if the key correspond to a core element of the fock"
         if core_features is None:
             return features
-        return core_features if self.coupled_fock_key_is_core(key) else features
+        if self.coupled_fock_key_is_core(key):
+            return core_features
+        else:
+            return features
+        # return core_features if self.coupled_fock_key_is_core(key) else features
 
     def get_feature_block(
         self, features: TensorMap, key: Labels, core_features: TensorMap = None
