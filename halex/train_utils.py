@@ -102,7 +102,7 @@ def compute_features(
         # Drop every other feature block that is not used to
         # learn our target (e.g., wrong symmetries)
         feats = drop_unused_features(
-            feats, targs_coupled=big_basis_data.focks_orth_tmap_coupled
+            feats, targs_coupled=small_basis_data.focks_orth_tmap_coupled
         )
 
         # Possibily transform the features with a pretrained
