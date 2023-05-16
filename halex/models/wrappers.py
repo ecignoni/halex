@@ -175,6 +175,15 @@ def _loss_eigenvalues_lowdinqbyMO_vectorized(
 # ============================================================================
 
 
+def _get_batches_from_dataset(dataset, idx):
+    try:
+        x, x_core, frames, eigvals, lowdinq = dataset[idx]
+    except ValueError:
+        x, frames, eigvals, lowdinq = dataset[idx]
+        x_core = None
+    return x, x_core, frames, eigvals, lowdinq
+
+
 def _accumulate_batch_losses(
     losses_dict,
     total_loss,
@@ -210,6 +219,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
         self,
         coupled_tmap: TensorMap,
         features: TensorMap,
+        core_features: TensorMap = None,
         alpha: float = 1.0,
         dump_dir: str = "",
         bias: bool = False,
@@ -230,6 +240,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
         super().__init__(
             coupled_tmap=coupled_tmap,
             features=features,
+            core_features=core_features,
             alpha=alpha,
             dump_dir=dump_dir,
             bias=bias,
@@ -267,10 +278,12 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
     ) -> Dict[str, torch.Tensor]:
         losses = defaultdict(list)
         for idx in range(len(train_dataset)):
-            x, frames, eigvals, lowdinq = train_dataset[idx]
+            x, x_core, frames, eigvals, lowdinq = _get_batches_from_dataset(
+                train_dataset, idx
+            )
 
             optimizer.zero_grad()
-            pred = self(x)
+            pred = self(features=x, core_features=x_core)
 
             # loss + regularization
             loss, *other_losses = self.loss_fn(
@@ -304,9 +317,11 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
     ) -> Dict[str, torch.Tensor]:
         losses = defaultdict(list)
         for idx in range(len(valid_dataset)):
-            x, frames, eigvals, lowdinq = valid_dataset[idx]
+            x, x_core, frames, eigvals, lowdinq = _get_batches_from_dataset(
+                valid_dataset, idx
+            )
 
-            pred = self(x)
+            pred = self(features=x, core_features=x_core)
 
             # loss + regularization
             loss, *other_losses = self.loss_fn(
@@ -419,6 +434,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
         self,
         coupled_tmap: TensorMap,
         features: TensorMap,
+        core_features: TensorMap = None,
         alpha: float = 1.0,
         dump_dir: str = "",
         bias: bool = False,
@@ -439,6 +455,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
         super().__init__(
             coupled_tmap=coupled_tmap,
             features=features,
+            core_features=core_features,
             alpha=alpha,
             dump_dir=dump_dir,
             bias=bias,
@@ -481,10 +498,12 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
 
         for train_dataset in train_datasets:
             for idx in range(len(train_dataset)):
-                x, frames, eigvals, lowdinq = train_dataset[idx]
+                x, x_core, frames, eigvals, lowdinq = _get_batches_from_dataset(
+                    train_dataset, idx
+                )
 
                 optimizer.zero_grad()
-                pred = self(x)
+                pred = self(features=x, core_features=x_core)
 
                 loss, *other_losses = self.loss_fn(
                     pred_blocks=pred,
@@ -517,9 +536,11 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
 
         for valid_dataset in valid_datasets:
             for idx in range(len(valid_dataset)):
-                x, frames, eigvals, lowdinq = valid_dataset[idx]
+                x, x_core, frames, eigvals, lowdinq = _get_batches_from_dataset(
+                    valid_dataset, idx
+                )
 
-                pred = self(x)
+                pred = self(features=x, core_features=x_core)
 
                 loss, *other_losses = self.loss_fn(
                     pred_blocks=pred,
