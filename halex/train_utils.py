@@ -1,10 +1,21 @@
 from __future__ import annotations
-from typing import Tuple
+from typing import Tuple, Dict, Any, List
 
 import os
 import numpy as np
+from tqdm import tqdm
+
+from equistore import TensorMap
+
+from .decomposition import EquivariantPCA
 from .rotations import ClebschGordanReal
 from .dataset import SCFData
+from .utils import tensormap_as_torch
+from .hamiltonian import (
+    compute_ham_features,
+    drop_unused_features,
+    drop_noncore_features,
+)
 
 
 def load_molecule_scf_datasets(
@@ -60,3 +71,48 @@ def load_molecule_scf_datasets(
     )
 
     return sb_data, bb_data
+
+
+def compute_features(
+    datasets: Dict[str, Tuple[SCFData, SCFData]],
+    rascal_hypers: Dict[str, Any],
+    cg: ClebschGordanReal,
+    lcut: int,
+    epca: EquivariantPCA = None,
+    core_only: bool = False,
+) -> List[TensorMap]:
+    """Computes the Hamiltonian features
+
+    epca: if given, transforms the features using the fitted EquivariantPCA object
+    core_only: if true, only retains the features used to learn core hamiltonian
+               elements
+    """
+    calc_feats = lambda dataset: tensormap_as_torch(  # noqa
+        compute_ham_features(rascal_hypers, frames=dataset.frames, cg=cg, lcut=lcut)
+    )
+
+    feats_list = []
+    # n = 0
+    for small_basis_data, big_basis_data in tqdm(datasets.values()):
+        feats = calc_feats(small_basis_data)
+        # Only retain "core" features if requested
+        if core_only:
+            feats = drop_noncore_features(feats)
+
+        # Drop every other feature block that is not used to
+        # learn our target (e.g., wrong symmetries)
+        feats = drop_unused_features(
+            feats, targs_coupled=big_basis_data.focks_orth_tmap_coupled
+        )
+
+        # Possibily transform the features with a pretrained
+        # EquivariantPCA is available (save memory)
+        if epca is not None:
+            feats = epca.transform(feats)
+
+        # feats = shift_structure_by_n(feats, n=n)
+        # n += small_basis_data.n_frames
+        feats_list.append(feats)
+
+    # feats = equistore.join(feats_list, axis="samples")
+    return feats_list
