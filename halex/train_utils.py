@@ -9,7 +9,7 @@ from equistore import TensorMap
 
 from .decomposition import EquivariantPCA
 from .rotations import ClebschGordanReal
-from .dataset import SCFData
+from .dataset import SCFData, BatchedMemoryDataset
 from .utils import tensormap_as_torch
 from .hamiltonian import (
     compute_ham_features,
@@ -116,3 +116,66 @@ def compute_features(
 
     # feats = equistore.join(feats_list, axis="samples")
     return feats_list
+
+
+def batched_dataset_for_a_single_molecule(
+    scf_datasets: Tuple[SCFData, SCFData],
+    feats: List[TensorMap],
+    nelec_dict: Dict[str, float],
+    batch_size: int,
+    lowdin_charges_by_MO: bool = False,
+    core_feats: List[TensorMap] = None,
+) -> BatchedMemoryDataset:
+    """
+    Create a BatchedMemoryDataset (which is what our models expect)
+
+    lowdin_charges_by_MO: whether to use total lowdin charges (False)
+                          or lowdin charges partitioned by MO (True)
+    core_feats: optional features used to learn the core elements of
+                the Fock matrix.
+    """
+    small_basis, big_basis = scf_datasets
+
+    frames = small_basis.frames
+
+    # truncate the big basis MO energies to the first n_small
+    mo_energy = big_basis.mo_energy[:, : small_basis.mo_energy.shape[1]]
+
+    # no need to truncate here as they refer to _occupied_ MOs
+    lowdin_charges = (
+        big_basis.lowdin_charges_byMO
+        if lowdin_charges_by_MO
+        else big_basis.lowdin_charges
+    )
+
+    # orbitals in the small basis (because we predict a small basis Fock)
+    orbs = small_basis.orbs
+
+    # ao labels in the small basis
+    ao_labels = small_basis.ao_labels
+
+    if core_feats is None:
+        return BatchedMemoryDataset(
+            len(frames),
+            feats,
+            frames,
+            mo_energy,
+            lowdin_charges,
+            ao_labels=ao_labels,
+            orbs=orbs,
+            nelec_dict=nelec_dict,
+            batch_size=batch_size,
+        )
+    else:
+        return BatchedMemoryDataset(
+            len(frames),
+            feats,
+            core_feats,
+            frames,
+            mo_energy,
+            lowdin_charges,
+            ao_labels=ao_labels,
+            orbs=orbs,
+            nelec_dict=nelec_dict,
+            batch_size=batch_size,
+        )
