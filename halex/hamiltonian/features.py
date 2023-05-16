@@ -1,6 +1,7 @@
 from ..rascal_wrapper import RascalSphericalExpansion, RascalPairExpansion
 from ..acdc_mini import acdc_standardize_keys, cg_increment
 
+import equistore
 from equistore import Labels, TensorBlock, TensorMap
 from equistore.io import save as equisave
 import numpy as np
@@ -187,6 +188,30 @@ def drop_unused_features(feats, targs_coupled):
     trim_feats = TensorMap(keys=retained_keys, blocks=retained_blocks)
 
     return trim_feats
+
+
+def is_core_feature(key):
+    """
+    Given a key of a TensorMap of features, tells if it
+    can be used to learn a core element of the Fock matrix.
+    Only considers 1s AOs as being part of the core.
+    """
+    c0 = key["spherical_harmonics_l"] == 0
+    c1 = key["species_center"] != 1
+    c2 = key["species_neighbor"] != 1
+    c3 = key["block_type"] == 0
+    is_core = c0 and c1 and c2 and c3
+    return is_core
+
+
+def drop_noncore_features(feats: TensorMap) -> TensorMap:
+    "drop every block of features that cannot be used to learn a core element"
+    keys_to_drop = []
+    for key in feats.keys:
+        if not is_core_feature(key):
+            keys_to_drop.append(list(key))
+    keys_to_drop = Labels(feats.keys.names, values=np.array(keys_to_drop))
+    return equistore.drop_blocks(feats, keys=keys_to_drop)
 
 
 # if __name__ == "__main__":
