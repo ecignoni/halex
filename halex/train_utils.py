@@ -5,6 +5,7 @@ import os
 import numpy as np
 from tqdm import tqdm
 
+import equistore
 from equistore import TensorMap
 
 from .decomposition import EquivariantPCA
@@ -179,3 +180,22 @@ def batched_dataset_for_a_single_molecule(
             nelec_dict=nelec_dict,
             batch_size=batch_size,
         )
+
+
+def coupled_fock_matrix_from_multiple_molecules(
+    multimol_scf_datasets: List[Tuple[SCFData, SCFData]]
+) -> TensorMap:
+    """
+    Get and join together the Fock matrices in the coupled
+    angular momentum basis for multiple molecules
+    """
+    to_couple = []
+    if len(multimol_scf_datasets) > 1:
+        for small_basis, _ in multimol_scf_datasets:
+            to_couple.append(small_basis.focks_orth_tmap_coupled)
+            # to_couple.append(shift_structure_by_n(smallb.focks_orth_tmap_coupled, n=n))
+            # n += smallb.n_frames
+        fock_coupled = equistore.join(to_couple, axis="samples")
+    else:
+        fock_coupled = multimol_scf_datasets[0][0].focks_orth_tmap_coupled
+    return fock_coupled
