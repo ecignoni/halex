@@ -197,5 +197,5 @@ def coupled_fock_matrix_from_multiple_molecules(
             # n += smallb.n_frames
         fock_coupled = equistore.join(to_couple, axis="samples")
     else:
-        fock_coupled = multimol_scf_datasets[0][0].focks_orth_tmap_coupled
+        fock_coupled = list(multimol_scf_datasets)[0][0].focks_orth_tmap_coupled
     return fock_coupled
