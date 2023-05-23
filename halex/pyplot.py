@@ -9,10 +9,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def set_equalaxes(axes):
+def _sanify_axes(axes):
     if not isinstance(axes, list) and not isinstance(axes, np.ndarray):
         axes = [axes]
+    return axes
 
+
+def set_equalaxes(axes):
+    axes = _sanify_axes(axes)
     xlims = np.array([ax.get_xlim() for ax in axes])
     ylims = np.array([ax.get_ylim() for ax in axes])
     xmin = np.min(xlims[:, 0])
@@ -25,6 +29,13 @@ def set_equalaxes(axes):
     for ax in axes:
         ax.set_xlim(lmin, lmax)
         ax.set_ylim(lmin, lmax)
+
+
+def set_equalticks(axes, ticks):
+    axes = _sanify_axes(axes)
+    for ax in axes:
+        ax.set_xticks(ticks)
+        ax.set_yticks(ticks)
 
 
 def plot_distribution_mo_energies(
