@@ -273,3 +273,26 @@ def drop_target_samples(
         print("all keys matched successfully")
 
     return TensorMap(targ_coupled.keys, blocks)
+
+
+def fix_pyscf_l1_crossoverlap(cross_ovlp, frame, orbs_sb, orbs_bb):
+    indeces_sb = fix_pyscf_l1(None, frame, orbs_sb, return_index=True)
+    indeces_bb = fix_pyscf_l1(None, frame, orbs_bb, return_index=True)
+    cross_ovlp = cross_ovlp[indeces_sb][:, indeces_bb]
+    return cross_ovlp
+
+
+def load_cross_ovlps(path, frames, orbs_sb, orbs_bb, indices):
+    """
+    Loads the cross overlap matrices from path, and reorders
+    the l1 terms of both AO bases.
+    """
+    cross_ovlps = torch.from_numpy(np.load(path)[indices])
+    # reorder the AO basis on both sides
+    cross_ovlps = torch.stack(
+        [
+            fix_pyscf_l1_crossoverlap(cross_s, frame, orbs_sb, orbs_bb)
+            for cross_s, frame in zip(cross_ovlps, frames)
+        ]
+    )
+    return cross_ovlps
