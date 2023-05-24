@@ -11,12 +11,16 @@ from equistore import TensorMap
 from .decomposition import EquivariantPCA
 from .rotations import ClebschGordanReal
 from .dataset import SCFData, BatchedMemoryDataset
-from .utils import tensormap_as_torch
+from .utils import tensormap_as_torch, load_cross_ovlps
 from .hamiltonian import (
     compute_ham_features,
     drop_unused_features,
     drop_noncore_features,
 )
+from .operations import unorthogonalize_coeff
+from .mom import orbital_projection, indices_highest_orbital_projection
+
+import torch
 
 
 def load_molecule_scf_datasets(
@@ -199,3 +203,27 @@ def coupled_fock_matrix_from_multiple_molecules(
     else:
         fock_coupled = list(multimol_scf_datasets)[0][0].focks_orth_tmap_coupled
     return fock_coupled
+
+
+def indices_from_MOM(cross_ovlp_paths, scf_datasets):
+    indices = {}
+    for path, (mol, (sb, bb)) in zip(cross_ovlp_paths, scf_datasets.items()):
+        cross_ovlps = load_cross_ovlps(
+            path,
+            frames=sb.frames,
+            orbs_sb=sb.orbs,
+            orbs_bb=bb.orbs,
+            indices=sb.indices,
+        )
+        c_sb = unorthogonalize_coeff(sb.ovlps, sb.mo_coeff_orth)
+        c_bb = unorthogonalize_coeff(bb.ovlps, bb.mo_coeff_orth)
+        proj = orbital_projection(cross_ovlps, c_sb, c_bb, which="2over1")
+        nocc = sum(sb.mo_occ == 2).item()
+        nvir = sum(sb.mo_occ == 0).item()
+        mo_vir_idx = indices_highest_orbital_projection(proj, n=nvir, skip_n=nocc)
+        mo_occ = torch.repeat_interleave(
+            torch.arange(nocc)[None, :], mo_vir_idx.shape[0], dim=0
+        )
+        selected = torch.column_stack([mo_occ, mo_vir_idx])
+        indices[mol] = selected
+    return indices
