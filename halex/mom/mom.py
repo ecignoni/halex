@@ -44,6 +44,11 @@ def _validate_projection(which):
 
 
 def orbital_overlap_matrix(ovlp_12, c1, c2):
+    """computes the orbital overlap matrix
+
+    This is the matrix used in MOM, eq 2.7 of
+    https://pubs.acs.org/doi/pdf/10.1021/jp801738f
+    """
     batching = _validate_arguments(ovlp_12, c1, c2)
     if batching:
         return _batched_orbital_overlap_matrix(ovlp_12, c1, c2)
@@ -52,6 +57,11 @@ def orbital_overlap_matrix(ovlp_12, c1, c2):
 
 
 def orbital_projection(ovlp_12, c1, c2, which="1over2"):
+    """projection of MO of 1 onto the MO space of 2
+
+    This is the score computed in MOM, eq 2.8 of
+    https://pubs.acs.org/doi/pdf/10.1021/jp801738f
+    """
     batching = _validate_arguments(ovlp_12, c1, c2)
     dim = _validate_projection(which)
     if batching:
