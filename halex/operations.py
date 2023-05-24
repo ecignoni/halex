@@ -21,3 +21,12 @@ def lowdin_orthogonalize(F: torch.Tensor, S: torch.Tensor) -> torch.Tensor:
     else:
         S_i12 = isqrtm(S)
         return S_i12 @ F @ S_i12
+
+
+def unorthogonalize_coeff(S: torch.Tensor, C: torch.Tensor) -> torch.Tensor:
+    if C.ndim == 3 and S.ndim == 3:
+        Ss_i12 = torch.stack([isqrtm(s) for s in S])
+        return torch.einsum("fmn,fni->fmi", Ss_i12, C)
+    else:
+        S_i12 = isqrtm(S)
+        return S_i12 @ C
