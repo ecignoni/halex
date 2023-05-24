@@ -130,6 +130,7 @@ def batched_dataset_for_a_single_molecule(
     batch_size: int,
     lowdin_charges_by_MO: bool = False,
     core_feats: List[TensorMap] = None,
+    mo_indices=None,
 ) -> BatchedMemoryDataset:
     """
     Create a BatchedMemoryDataset (which is what our models expect)
@@ -143,8 +144,12 @@ def batched_dataset_for_a_single_molecule(
 
     frames = small_basis.frames
 
-    # truncate the big basis MO energies to the first n_small
-    mo_energy = big_basis.mo_energy[:, : small_basis.mo_energy.shape[1]]
+    # truncate the big basis MO energies.
+    # If indices are present, use them
+    if mo_indices is None:
+        mo_energy = big_basis.mo_energy[:, : small_basis.mo_energy.shape[1]]
+    else:
+        mo_energy = torch.take(big_basis.mo_energy, mo_indices)
 
     # no need to truncate here as they refer to _occupied_ MOs
     lowdin_charges = (
