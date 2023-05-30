@@ -97,6 +97,7 @@ def orbital_overlap_matrix(
     the same holds for C2 (although, in general, they are different),
     and S12 is the (cross) overlap between C1 and C2.
     Repeating indices imply a summation.
+    The AO basis is assumed to be normalized.
 
     Args:
         ovlp_12: cross overlap between 1 and 2,
@@ -129,6 +130,7 @@ def mom_orbital_projection(
     Note that this is *not* a real projection, and can suffer
     from several instabilities. The projection also changes when
     the orbitals in C1 or C2 are rotated with a unitary matrix.
+    The AO basis is assumed to be normalized.
 
     Args:
         ovlp_12: cross overlap between 1 and 2,
@@ -168,6 +170,7 @@ def pmom_orbital_projection(
     This orbital projection does not change if
     the orbitals over which the projection is performed
     are rotated with a unitary matrix.
+    The AO basis is assumed to be normalized.
 
     Args:
         ovlp_12: cross overlap between 1 and 2,
