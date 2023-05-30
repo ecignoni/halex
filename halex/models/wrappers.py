@@ -48,6 +48,7 @@ def _loss_eigenvalues_lowdinq_vectorized(
     weight_eigvals: float = 1.0,
     weight_lowdinq: float = 1.0,
     weight_regloss: float = 1.0,
+    **kwargs,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     r"""combined loss on MO energies and Lowdin charges
 
@@ -258,6 +259,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
         weight_eigvals=1.5e6,
         weight_lowdinq=1e6,
         weight_regloss=1.0,
+        **kwargs,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return _loss_eigenvalues_lowdinq_vectorized(
             pred_blocks=pred_blocks,
@@ -271,6 +273,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
             weight_eigvals=weight_eigvals,
             weight_lowdinq=weight_lowdinq,
             weight_regloss=weight_regloss,
+            **kwargs,
         )
 
     def _train_step(
@@ -294,6 +297,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                 orbs=train_dataset.orbs,
                 ao_labels=train_dataset.ao_labels,
                 nelec_dict=train_dataset.nelec_dict,
+                mo_indices=train_dataset.lowdin_mo_indices,
                 **loss_kwargs,
             )
 
@@ -332,6 +336,7 @@ class RidgeOnEnergiesAndLowdin(RidgeModel):
                 orbs=valid_dataset.orbs,
                 ao_labels=valid_dataset.ao_labels,
                 nelec_dict=valid_dataset.nelec_dict,
+                mo_indices=valid_dataset.lowdin_mo_indices,
                 **loss_kwargs,
             )
 
@@ -403,6 +408,7 @@ class RidgeOnEnergiesAndLowdinByMO(RidgeOnEnergiesAndLowdin):
         orbs: Dict[int, List],
         ao_labels: List[int],
         nelec_dict: Dict[str, float],
+        mo_indices=None,
         weight_eigvals=1.5e6,
         weight_lowdinq=1e6,
         weight_lowdinq_tot=1e6,
@@ -416,6 +422,7 @@ class RidgeOnEnergiesAndLowdinByMO(RidgeOnEnergiesAndLowdin):
             orbs=orbs,
             ao_labels=ao_labels,
             nelec_dict=nelec_dict,
+            mo_indices=mo_indices,
             regloss=self.regloss_,
             weight_eigvals=weight_eigvals,
             weight_lowdinq=weight_lowdinq,
@@ -473,6 +480,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
         weight_eigvals=1.5e6,
         weight_lowdinq=1e6,
         weight_regloss=1.0,
+        **kwargs,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return _loss_eigenvalues_lowdinq_vectorized(
             pred_blocks=pred_blocks,
@@ -486,6 +494,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
             weight_eigvals=weight_eigvals,
             weight_lowdinq=weight_lowdinq,
             weight_regloss=weight_regloss,
+            **kwargs,
         )
 
     def _train_step(
@@ -513,6 +522,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                     orbs=train_dataset.orbs,
                     ao_labels=train_dataset.ao_labels,
                     nelec_dict=train_dataset.nelec_dict,
+                    mo_indices=train_dataset.lowdin_mo_indices,
                     **loss_kwargs,
                 )
 
@@ -550,6 +560,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
                     orbs=valid_dataset.orbs,
                     ao_labels=valid_dataset.ao_labels,
                     nelec_dict=valid_dataset.nelec_dict,
+                    mo_indices=valid_dataset.lowdin_mo_indices,
                     **loss_kwargs,
                 )
 
@@ -622,6 +633,7 @@ class RidgeOnEnergiesAndLowdinMultipleMoleculesByMO(
         orbs: Dict[int, List[Tuple[int, int, int]]],
         ao_labels: List[List[Any]],
         nelec_dict: Dict[str, float],
+        mo_indices=None,
         weight_eigvals=1.5e6,
         weight_lowdinq=1e6,
         weight_lowdinq_tot=1e6,
@@ -635,6 +647,7 @@ class RidgeOnEnergiesAndLowdinMultipleMoleculesByMO(
             orbs=orbs,
             ao_labels=ao_labels,
             nelec_dict=nelec_dict,
+            mo_indices=mo_indices,
             regloss=self.regloss_,
             weight_eigvals=weight_eigvals,
             weight_lowdinq=weight_lowdinq,

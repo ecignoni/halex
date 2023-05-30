@@ -135,6 +135,7 @@ def batched_dataset_for_a_single_molecule(
     lowdin_charges_by_MO: bool = False,
     core_feats: List[TensorMap] = None,
     mo_indices=None,
+    lowdin_mo_indices=None,
 ) -> BatchedMemoryDataset:
     """
     Create a BatchedMemoryDataset (which is what our models expect)
@@ -179,6 +180,7 @@ def batched_dataset_for_a_single_molecule(
             orbs=orbs,
             nelec_dict=nelec_dict,
             batch_size=batch_size,
+            lowdin_mo_indices=lowdin_mo_indices,
         )
     else:
         return BatchedMemoryDataset(
@@ -192,6 +194,7 @@ def batched_dataset_for_a_single_molecule(
             orbs=orbs,
             nelec_dict=nelec_dict,
             batch_size=batch_size,
+            lowdin_mo_indices=lowdin_mo_indices,
         )
 
 
@@ -216,6 +219,7 @@ def coupled_fock_matrix_from_multiple_molecules(
 
 def indices_from_MOM(cross_ovlp_paths, scf_datasets):
     indices = {}
+    projections = []
     for path, (mol, (sb, bb)) in zip(cross_ovlp_paths, scf_datasets.items()):
         cross_ovlps = load_cross_ovlps(
             path,
@@ -227,6 +231,7 @@ def indices_from_MOM(cross_ovlp_paths, scf_datasets):
         c_sb = unorthogonalize_coeff(sb.ovlps, sb.mo_coeff_orth)
         c_bb = unorthogonalize_coeff(bb.ovlps, bb.mo_coeff_orth)
         proj = mom_orbital_projection(cross_ovlps, c_sb, c_bb, which="2over1")
+        projections.append(proj)
         nocc = sum(sb.mo_occ == 2).item()
         nvir = sum(sb.mo_occ == 0).item()
         mo_vir_idx = indices_highest_orbital_projection(proj, n=nvir, skip_n=nocc)
@@ -235,11 +240,12 @@ def indices_from_MOM(cross_ovlp_paths, scf_datasets):
         )
         selected = torch.column_stack([mo_occ, mo_vir_idx])
         indices[mol] = selected
-    return indices
+    return indices, projections
 
 
 def indices_from_PMOM(cross_ovlp_paths, scf_datasets):
     indices = {}
+    projections = []
     for path, (mol, (sb, bb)) in zip(cross_ovlp_paths, scf_datasets.items()):
         cross_ovlps = load_cross_ovlps(
             path,
@@ -251,6 +257,7 @@ def indices_from_PMOM(cross_ovlp_paths, scf_datasets):
         c_sb = unorthogonalize_coeff(sb.ovlps, sb.mo_coeff_orth)
         c_bb = unorthogonalize_coeff(bb.ovlps, bb.mo_coeff_orth)
         proj = pmom_orbital_projection(cross_ovlps, c_sb, c_bb, which="2over1")
+        projections.append(proj)
         nocc = sum(sb.mo_occ == 2).item()
         nvir = sum(sb.mo_occ == 0).item()
         mo_vir_idx = indices_highest_orbital_projection(proj, n=nvir, skip_n=nocc)
@@ -259,4 +266,4 @@ def indices_from_PMOM(cross_ovlp_paths, scf_datasets):
         )
         selected = torch.column_stack([mo_occ, mo_vir_idx])
         indices[mol] = selected
-    return indices
+    return indices, projections
