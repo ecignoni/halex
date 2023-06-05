@@ -7,6 +7,7 @@ import numpy as np
 import ase.io
 import torch
 
+import equistore
 from equistore import Labels, TensorBlock, TensorMap
 
 
@@ -273,6 +274,24 @@ def drop_target_samples(
         print("all keys matched successfully")
 
     return TensorMap(targ_coupled.keys, blocks)
+
+
+def drop_target_heavy_1s(targ_coupled, verbose=False):
+    def is_core(key, at="i"):
+        cond0 = key[f"a_{at}"] != 1
+        cond1 = key[f"n_{at}"] == 1
+        cond2 = key[f"l_{at}"] == 0
+        return cond0 and cond1 and cond2
+
+    keys_to_drop = []
+    for key in targ_coupled.keys:
+        if is_core(key, "i") or is_core(key, "j"):
+            keys_to_drop.append(tuple(key))
+            if verbose:
+                print(f"Dropping key: {key}")
+    keys_to_drop = Labels(targ_coupled.keys.names, values=np.array(keys_to_drop))
+
+    return equistore.drop_blocks(targ_coupled, keys_to_drop)
 
 
 def fix_pyscf_l1_crossoverlap(cross_ovlp, frame, orbs_sb, orbs_bb):

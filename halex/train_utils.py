@@ -136,6 +136,7 @@ def batched_dataset_for_a_single_molecule(
     core_feats: List[TensorMap] = None,
     mo_indices=None,
     lowdin_mo_indices=None,
+    ignore_heavy_1s: bool = False,
 ) -> BatchedMemoryDataset:
     """
     Create a BatchedMemoryDataset (which is what our models expect)
@@ -149,25 +150,38 @@ def batched_dataset_for_a_single_molecule(
 
     frames = small_basis.frames
 
+    # get the number of core elements as the number of atoms that are
+    # not hydrogens. Choose on the basis of the first frame
+    if ignore_heavy_1s:
+        ncore = _number_of_heavy_elements(big_basis.frames[0])
+    else:
+        ncore = 0
+
     # truncate the big basis MO energies.
     # If indices are present, use them
+    mo_energy = big_basis.mo_energy[:, ncore:]
+
     if mo_indices is None:
-        mo_energy = big_basis.mo_energy[:, : small_basis.mo_energy.shape[1]]
+        mo_energy = mo_energy[:, : small_basis.mo_energy.shape[1] - ncore]
     else:
-        mo_energy = torch.take(big_basis.mo_energy, mo_indices)
+        mo_energy = torch.take(mo_energy, mo_indices)
 
     # no need to truncate here as they refer to _occupied_ MOs
     lowdin_charges = (
-        big_basis.lowdin_charges_byMO
+        big_basis.lowdin_charges_byMO[:, ncore:]
         if lowdin_charges_by_MO
         else big_basis.lowdin_charges
     )
 
     # orbitals in the small basis (because we predict a small basis Fock)
     orbs = small_basis.orbs
+    if ignore_heavy_1s:
+        orbs = _drop_heavy_1s_from_orbs(orbs)
 
     # ao labels in the small basis
     ao_labels = small_basis.ao_labels
+    if ignore_heavy_1s:
+        ao_labels = _drop_heavy_1s_from_ao_labels(ao_labels)
 
     if core_feats is None:
         return BatchedMemoryDataset(
@@ -198,6 +212,36 @@ def batched_dataset_for_a_single_molecule(
         )
 
 
+def _number_of_heavy_elements(frame):
+    return sum(frame.numbers != 1)
+
+
+def _drop_heavy_1s_from_orbs(orbs):
+    new_orbs = dict()
+    for key in orbs.keys():
+        if key == 1:
+            new_orbs[key] = orbs[key]
+        else:
+            new_orbs[key] = list()
+            for nlm in orbs[key]:
+                if tuple(nlm) == (1, 0, 0):
+                    pass
+                else:
+                    new_orbs[key].append(nlm)
+    return new_orbs
+
+
+def _drop_heavy_1s_from_ao_labels(ao_labels):
+    new_ao_labels = []
+    for lbl in ao_labels:
+        if lbl[1] == "H":
+            new_ao_labels.append(lbl)
+        else:
+            if tuple(lbl[2]) != (1, 0, 0):
+                new_ao_labels.append(lbl)
+    return new_ao_labels
+
+
 def baselined_batched_dataset_for_a_single_molecule(
     scf_datasets: Tuple[SCFData, SCFData],
     feats: List[TensorMap],
@@ -207,6 +251,7 @@ def baselined_batched_dataset_for_a_single_molecule(
     core_feats: List[TensorMap] = None,
     mo_indices=None,
     lowdin_mo_indices=None,
+    ignore_heavy_1s: bool = False,
 ) -> BatchedMemoryDataset:
     """
     Create a BatchedMemoryDataset (which is what our models expect)
@@ -220,12 +265,13 @@ def baselined_batched_dataset_for_a_single_molecule(
 
     frames = small_basis.frames
 
-    # truncate the big basis MO energies.
-    # If indices are present, use them
+    # get the number of core elements as the number of atoms that are
+    # not hydrogens. Choose on the basis of the first frame
+    mo_energy = big_basis.mo_energy
     if mo_indices is None:
-        mo_energy = big_basis.mo_energy[:, : small_basis.mo_energy.shape[1]]
+        mo_energy = mo_energy[:, : small_basis.mo_energy.shape[1]]
     else:
-        mo_energy = torch.take(big_basis.mo_energy, mo_indices)
+        mo_energy = torch.take(mo_energy, mo_indices)
 
     # no need to truncate here as they refer to _occupied_ MOs
     lowdin_charges = (
