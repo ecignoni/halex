@@ -176,7 +176,7 @@ class ClebschGordanReal:
         r"""
         Undoes the transformation enacted by couple.
 
-        |l1 m1> |l2 m2> = \sum_{m1 m2} <L M |l1 m1 l2 m2> |l1 l2 L M>
+        |l1 m1> |l2 m2> = \sum_{L M} <L M |l1 m1 l2 m2> |l1 l2 L M>
         """
 
         decoupled = {}
