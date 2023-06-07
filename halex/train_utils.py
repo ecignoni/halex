@@ -320,7 +320,6 @@ def baselined_batched_dataset_for_a_single_molecule(
 
 def coupled_fock_matrix_from_multiple_molecules(
     multimol_scf_datasets: List[Tuple[SCFData, SCFData]],
-    baselines_coupled=None,
 ) -> TensorMap:
     """
     Get and join together the Fock matrices in the coupled
@@ -330,16 +329,12 @@ def coupled_fock_matrix_from_multiple_molecules(
     if len(multimol_scf_datasets) > 1:
         for i, (small_basis, _) in enumerate(multimol_scf_datasets):
             fock = small_basis.focks_orth_tmap_coupled
-            if baselines_coupled is not None:
-                fock = fock - baselines_coupled[i]
             to_couple.append(fock)
             # to_couple.append(shift_structure_by_n(smallb.focks_orth_tmap_coupled, n=n))
             # n += smallb.n_frames
         fock_coupled = equistore.join(to_couple, axis="samples")
     else:
         fock_coupled = list(multimol_scf_datasets)[0][0].focks_orth_tmap_coupled
-        if baselines_coupled is not None:
-            fock_coupled = fock_coupled - baselines_coupled
     return fock_coupled
 
 
