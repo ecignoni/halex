@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from tqdm import tqdm
+import warnings
 
 from equistore import Labels, TensorBlock, TensorMap
 
