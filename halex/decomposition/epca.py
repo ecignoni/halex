@@ -88,6 +88,13 @@ class EquivariantPCA:
                 max_comp = self.n_components
                 retained = torch.arange(max_comp)
 
+            # if n_components is too big, do not throw an error but
+            # use all the available components
+            else:
+                warnings.warn('n_components too big: retaining everything')
+                max_comp = min(nsamples * ncomps, nprops)
+                retained = torch.arange(max_comp)
+
             eigs = eigs[retained]
             eigs_ratio = eigs_ratio[retained]
             components = components[:, retained]
