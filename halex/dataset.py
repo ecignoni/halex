@@ -40,6 +40,7 @@ class SCFData:
         skip_first_n: int = 0,
         indices: Union[torch.Tensor, np.ndarray] = None,
         nelec_dict: Dict[str, float] = None,
+        drop_atomic_orbitals: Callable = None,
     ) -> None:
         self.max_frames = max_frames
         self.skip_first_n = skip_first_n
@@ -50,12 +51,15 @@ class SCFData:
         self.ovlps = ovlps
         self.cg = cg
         self.nelec_dict = nelec_dict
+        self.ao_labels = get_ao_labels(self.orbs, self.frames[0].numbers)
+
+        self.drop_atomic_orbitals = drop_atomic_orbitals
+        self._drop_atomic_orbitals()
 
         self.focks_orth = lowdin_orthogonalize(self.focks, self.ovlps)
         self.focks_orth_tmap = dense_to_blocks(self.focks_orth, self.frames, self.orbs)
         self.focks_orth_tmap_coupled = couple_blocks(self.focks_orth_tmap, cg=self.cg)
 
-        self.ao_labels = get_ao_labels(self.orbs, self.frames[0].numbers)
         self.mo_energy, self.mo_coeff_orth = torch.linalg.eigh(self.focks_orth)
         self.lowdin_charges, _ = batched_orthogonal_lowdin_population(
             focks_orth=self.focks_orth,
@@ -70,6 +74,20 @@ class SCFData:
         self.mo_occ = self._get_mo_occupancy()
         self.atom_pure_symbols = self.frames[0].get_chemical_symbols()
         self.natm = len(self.atom_pure_symbols)
+
+
+    def _drop_atomic_orbitals(self):
+        if self.drop_atomic_orbitals is None:
+            return
+
+        # Get the indices of the atomic orbitals to drop
+        drop_idxs, self.ao_labels, self._orbs = self.drop_atomic_orbitals(self.ao_labels, self.orbs)
+        # Here we need to touch the private fock and overlap matrices (they are a property)
+        self._focks = np.delete(self._focks, drop_idxs, axis=1)
+        self._focks = np.delete(self._focks, drop_idxs, axis=2)
+        self._ovlps = np.delete(self._ovlps, drop_idxs, axis=1)
+        self._ovlps = np.delete(self._ovlps, drop_idxs, axis=2)
+
 
     @property
     def frames(self):
