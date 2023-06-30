@@ -6,6 +6,7 @@ import json
 import numpy as np
 import ase.io
 import torch
+from collections import defaultdict
 
 import equistore
 from equistore import Labels, TensorBlock, TensorMap
@@ -315,3 +316,15 @@ def load_cross_ovlps(path, frames, orbs_sb, orbs_bb, indices):
         ]
     )
     return cross_ovlps
+
+def orbs_without_heavy_core(orbs):
+    "removes the core AOs from the orbitals for heavy elements (non-hydrogen)"
+    new_orbs = defaultdict(list)
+    for nelem, atorbs in orbs.items():
+        for atorb in atorbs:
+            n, l, m = atorb
+            if nelem != 1 and n == 1 and l == 0:
+                pass
+            else:
+                new_orbs[nelem].append(atorb)
+    return new_orbs
