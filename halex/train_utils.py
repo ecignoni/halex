@@ -11,7 +11,7 @@ from equistore import TensorMap
 from .decomposition import EquivariantPCA
 from .rotations import ClebschGordanReal
 from .dataset import SCFData, BatchedMemoryDataset
-from .utils import tensormap_as_torch, load_cross_ovlps, drop_target_heavy_1s, orbs_without_heavy_core
+from .utils import tensormap_as_torch, load_cross_ovlps, drop_target_heavy_1s, orbs_without_heavy_core, ao_labels_without_heavy_core
 from .hamiltonian import (
     compute_ham_features,
     drop_unused_features,
