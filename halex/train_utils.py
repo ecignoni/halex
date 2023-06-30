@@ -4,7 +4,6 @@ from typing import Tuple, Dict, Any, List, Callable
 import os
 import numpy as np
 from tqdm import tqdm
-from collections import defaultdict
 
 import equistore
 from equistore import TensorMap
@@ -12,7 +11,7 @@ from equistore import TensorMap
 from .decomposition import EquivariantPCA
 from .rotations import ClebschGordanReal
 from .dataset import SCFData, BatchedMemoryDataset
-from .utils import tensormap_as_torch, load_cross_ovlps, drop_target_heavy_1s
+from .utils import tensormap_as_torch, load_cross_ovlps, drop_target_heavy_1s, orbs_without_heavy_core
 from .hamiltonian import (
     compute_ham_features,
     drop_unused_features,
@@ -349,25 +348,11 @@ def baselined_semiempirical_batched_dataset_for_a_single_molecule(
     # Remove the core from the orbitals
     # These orbitals are used to compute the population
     # analysis (by the ML model)
-    orbs = defaultdict(list)
-    for nelem, atorbs in small_basis.orbs.items():
-        for atorb in atorbs:
-            n, l, m = atorb
-            if nelem == 6 and n == 1 and l == 0:
-                pass
-            else:
-                orbs[nelem].append(atorb)
+    orbs, _ = orbs_without_heavy_core(small_basis.orbs)
 
     # Find the number of core AOs, and find the correct
     # AO labels (core excluded)
-    ao_labels = []
-    ncore = 0
-    for i, lbl in enumerate(small_basis.ao_labels):
-        _, atom, (n, l, m) = lbl
-        if atom == 'C' and n == 1 and l == 0:
-            ncore += 1
-        else:
-            ao_labels.append(lbl)
+    ao_labels, ncore = ao_labels_without_heavy_core(small_basis.ao_labels)
 
     # Now we have found ncore core AOs.
     # Remove the first ncore MO energies (we don't want

@@ -320,11 +320,26 @@ def load_cross_ovlps(path, frames, orbs_sb, orbs_bb, indices):
 def orbs_without_heavy_core(orbs):
     "removes the core AOs from the orbitals for heavy elements (non-hydrogen)"
     new_orbs = defaultdict(list)
+    ncore = 0
     for nelem, atorbs in orbs.items():
         for atorb in atorbs:
             n, l, m = atorb
             if nelem != 1 and n == 1 and l == 0:
-                pass
+                ncore += 1
             else:
                 new_orbs[nelem].append(atorb)
-    return new_orbs
+    return new_orbs, ncore
+
+def ao_labels_without_heavy_core(ao_labels):
+    "removes the core AOs from the AO labels for heavy elements (non-hydrogens)"
+    # Find the number of core AOs, and find the correct
+    # AO labels (core excluded)
+    new_ao_labels = []
+    ncore = 0
+    for i, lbl in enumerate(ao_labels):
+        _, atom, (n, l, m) = lbl
+        if atom != 'H' and n == 1 and l == 0:
+            ncore += 1
+        else:
+            new_ao_labels.append(lbl)
+    return new_ao_labels, ncore
