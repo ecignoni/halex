@@ -27,15 +27,24 @@ def hamiltonian_features(centers, pairs):
                 0,
             )
         )
-        samples_array = np.vstack(b.samples.tolist())
+        # ===
+        #`Try to handle the case of no computed features
+        if len(b.samples.tolist()) == 0:
+            samples_array = b.samples
+        else:
+            samples_array = np.vstack(b.samples.tolist())
+            samples_array = np.hstack([samples_array, samples_array[:, -1:]], dtype=np.int32)
+        # ===
+        # samples_array = np.vstack(b.samples.tolist())
         blocks.append(
             TensorBlock(
                 samples=Labels(
                     names=b.samples.names + ("neighbor",),
-                    values=np.asarray(
-                        np.hstack([samples_array, samples_array[:, -1:]]),
-                        dtype=np.int32,
-                    ),
+                    values=samples_array,
+                    # values=np.asarray(
+                    #     np.hstack([samples_array, samples_array[:, -1:]]),
+                    #     dtype=np.int32,
+                    # ),
                 ),
                 components=b.components,
                 properties=b.properties,
@@ -114,16 +123,16 @@ def hamiltonian_features(centers, pairs):
     )
 
 
-def compute_ham_features(rascal_hypers, frames, cg, lcut, saveto=None, verbose=False):
+def compute_ham_features(rascal_hypers, frames, cg, lcut, saveto=None, verbose=False, global_species=None):
     if verbose:
         print("Computing |rho_i>")
     spex = RascalSphericalExpansion(rascal_hypers)
-    rhoi = spex.compute(frames)
+    rhoi = spex.compute(frames, global_species=global_species)
 
     if verbose:
         print("Computing |g_ij>")
     pairs = RascalPairExpansion(rascal_hypers)
-    gij = pairs.compute(frames)
+    gij = pairs.compute(frames, global_species=global_species)
 
     # make them compatible for cg increments...
     rho1i = acdc_standardize_keys(rhoi)

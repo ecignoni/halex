@@ -157,6 +157,8 @@ def cg_combine(  # noqa: C901
             properties_b = block_b.properties
             samples_b = block_b.samples
 
+            # print('block_a', block_a.values.shape, 'block_b', block_b.values.shape)
+
             if other_keys_match is None:
                 OTHERS = tuple(index_a[name] for name in other_keys_a) + tuple(
                     index_b[name] for name in other_keys_b
@@ -168,6 +170,7 @@ def cg_combine(  # noqa: C901
                 # skip combinations without matching key
                 if len(OTHERS) < len(other_keys_match):
                     continue
+
                 # adds non-matching keys to build outer product
                 OTHERS = OTHERS + tuple(
                     index_a[k] for k in other_keys_a if k not in other_keys_match
@@ -179,14 +182,23 @@ def cg_combine(  # noqa: C901
             if "neighbor" in samples_b.names and "neighbor" not in samples_a.names:
                 # we hard-code a combination method where b can be a pair descriptor. this needs some work to be general and robust
                 # note also that this assumes that structure, center are ordered in the same way in the centred and neighbor descriptors
-                neighbor_slice = []
-                smp_a, smp_b = 0, 0
-                while smp_b < samples_b.shape[0]:
-                    if samples_b[smp_b][["structure", "center"]] != samples_a[smp_a]:
-                        smp_a += 1
-                    neighbor_slice.append(smp_a)
-                    smp_b += 1
-                neighbor_slice = np.asarray(neighbor_slice)
+
+                # ===========
+                # EDIT: we also try to handle the case of missing features (e.g., when you want to include atom species not present
+                # in the original frame, for which rascal gives an empty array)
+                if samples_b.shape[0] == 0:
+                    neighbor_slice = slice(None)
+                # ===========
+
+                else:
+                    neighbor_slice = []
+                    smp_a, smp_b = 0, 0
+                    while smp_b < samples_b.shape[0]:
+                        if samples_b[smp_b][["structure", "center"]] != samples_a[smp_a]:
+                            smp_a += 1
+                        neighbor_slice.append(smp_a)
+                        smp_b += 1
+                    neighbor_slice = np.asarray(neighbor_slice)
             else:
                 neighbor_slice = slice(None)
 
@@ -224,18 +236,45 @@ def cg_combine(  # noqa: C901
                 if KEY not in X_idx:
                     X_idx[KEY] = []
                     X_blocks[KEY] = []
-                    X_samples[KEY] = block_b.samples
+
+                    # ===
+                    # Let's try to handle the case of no features
+                    _bs0 = block_b.values.shape[0]
+                    _as0 = block_a.values.shape[0]
+                    if _bs0 == 0 and _as0 != 0:
+                        _nsamples = len(block_b.samples.names)
+                        _newsamples = np.array([[-i for _ in range(_nsamples)] for i in range(_as0)])
+                        X_samples[KEY] = Labels(names=block_b.samples.names, values=_newsamples)
+                    else:
+                        X_samples[KEY] = block_b.samples
+                    # ===
+
                     if grad_components is not None:
                         X_grads[KEY] = []
                         X_grad_samples[KEY] = block_b.gradient("positions").samples
 
+                # ===
+                # Let's try to handle the case for when there are
+                # no features computed in a or b
+                as0, as1, as2 = block_a.values.shape
+                bs0, bs1, bs2 = block_b.values.shape
+
+                if bs0 == 0 and as0 != 0:
+                    values_a = block_a.values
+                    values_b = np.zeros((as0, bs1, bs2))
+                else:
+                    values_a = block_a.values
+                    values_b = block_b.values
+
                 # builds all products in one go
                 one_shot_blocks = clebsch_gordan.combine_einsum(
-                    block_a.values[neighbor_slice][:, :, sel_feats[:, 0]],
-                    block_b.values[:, :, sel_feats[:, 1]],
+                    values_a[neighbor_slice][:, :, sel_feats[:, 0]],
+                    values_b[:, :, sel_feats[:, 1]],
                     L,
                     combination_string="iq,iq->iq",
                 )
+                # ===
+
                 # do gradients, if they are present...
                 if grad_components is not None:
                     grad_a = block_a.gradient("positions")

@@ -15,12 +15,15 @@ class RascalSphericalExpansion:
     def __init__(self, hypers):
         self._hypers = copy.deepcopy(hypers)
 
-    def compute(self, frames: List[ase.Atoms]) -> TensorMap:  # noqa: C901
+    def compute(self, frames: List[ase.Atoms], global_species: List[int] = None) -> TensorMap:  # noqa: C901
         # Step 1: compute spherical expansion with librascal
         hypers = copy.deepcopy(self._hypers)
-        global_species = list(
-            map(int, np.unique(np.concatenate([f.numbers for f in frames])))
-        )
+
+        # if global_species is not given, infer it from the ase objects
+        if global_species is None:
+            global_species = list(
+                map(int, np.unique(np.concatenate([f.numbers for f in frames])))
+            )
 
         hypers["global_species"] = global_species
         hypers["expansion_by_species_method"] = "user defined"
@@ -185,7 +188,11 @@ class RascalPairExpansion:
     def __init__(self, hypers):
         self._hypers = copy.deepcopy(hypers)
 
-    def compute(self, frames: List[ase.Atoms]) -> TensorMap:
+    def compute(self, frames: List[ase.Atoms], global_species: List[int] = None) -> TensorMap:
+        # save here global_species under another name (same interface but used 
+        # differently inside the function)
+        all_species = global_species
+
         # Step 1: compute spherical expansion with librascal
         hypers = copy.deepcopy(self._hypers)
         if hypers["compute_gradients"]:
@@ -203,7 +210,11 @@ class RascalPairExpansion:
         #             for i, sp in enumerate(frames[0].numbers)}
 
         ijframes = []
-        all_species = np.unique(np.hstack([f.numbers for f in frames]))
+
+        # if all_species (the global_species provided) is None, infer it from the ase objects
+        if all_species is None:
+            all_species = np.unique(np.hstack([f.numbers for f in frames]))
+
         for f in frames:
             ijf = f.copy()
             ijf.numbers = global_species[: len(f)]
