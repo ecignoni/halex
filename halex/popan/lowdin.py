@@ -171,9 +171,9 @@ def batched_orthogonal_lowdinbyMO_population(
     atom_charges = _get_atom_charges(nelec_dict, ao_labels)
     natm = len(atom_charges)
     chg = torch.zeros((n_frames, nocc, natm))
-    # chg[:, :] = atom_charges
     for i, (iat, *_) in enumerate(ao_labels):
         chg[:, :, iat] -= pop[:, :, i]
+    # chg += atom_charges[None]
 
     return chg, pop
 
