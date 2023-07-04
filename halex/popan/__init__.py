@@ -11,4 +11,6 @@ from .lowdin import (
     batched_orthogonal_lowdin_population,
     orthogonal_lowdinbyMO_population,
     batched_orthogonal_lowdinbyMO_population,
+    orthogonal_lowdinallMO_population,
+    batched_orthogonal_lowdinallMO_population,
 )

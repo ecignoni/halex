@@ -150,6 +150,27 @@ def orthogonal_lowdinbyMO_population(
     return chg, pop
 
 
+def orthogonal_lowdinallMO_population(
+        fock_orth: torch.Tensor,
+    nelec_dict: Dict[int, float],
+    ao_labels: List[Tuple[int, Any]],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Löwdin population analysis"""
+    eps, c_tilde = torch.linalg.eigh(fock_orth)
+    nmo = fock_orth.shape[0]
+
+    n_elec = _get_n_elec(nelec_dict, ao_labels)
+
+    pop = 2 * torch.einsum("mi,mi->im", c_tilde, c_tilde.conj())
+    atom_charges = _get_atom_charges(nelec_dict, ao_labels)
+    natm = len(atom_charges)
+    chg = torch.zeros((nmo, natm))
+    for i, (iat, *_) in enumerate(ao_labels):
+        chg[:, iat] -= pop[:, i]
+
+    return chg, pop
+
+
 def batched_orthogonal_lowdinbyMO_population(
     focks_orth: torch.Tensor,
     nelec_dict: Dict[int, float],
@@ -174,6 +195,27 @@ def batched_orthogonal_lowdinbyMO_population(
     for i, (iat, *_) in enumerate(ao_labels):
         chg[:, :, iat] -= pop[:, :, i]
     # chg += atom_charges[None]
+
+    return chg, pop
+
+
+def batched_orthogonal_lowdinallMO_population(
+    fock_orth: torch.Tensor,
+    nelec_dict: Dict[int, float],
+    ao_labels: List[Tuple[int, Any]],
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Löwdin population analysis"""
+    eps, c_tilde = torch.linalg.eigh(fock_orth)
+
+    n_frames, nmo, _ = fock_orth.shape
+    n_elec = _get_n_elec(nelec_dict, ao_labels)
+
+    pop = 2 * torch.einsum("fmi,fmi->fim", c_tilde, c_tilde.conj())
+    atom_charges = _get_atom_charges(nelec_dict, ao_labels)
+    natm = len(atom_charges)
+    chg = torch.zeros((n_frames, nmo, natm))
+    for i, (iat, *_) in enumerate(ao_labels):
+        chg[:, :, iat] -= pop[:, :, i]
 
     return chg, pop
 
