@@ -33,7 +33,7 @@ def hamiltonian_features(centers, pairs):
             samples_array = b.samples
         else:
             samples_array = np.vstack(b.samples.tolist())
-            samples_array = np.hstack([samples_array, samples_array[:, -1:]], dtype=np.int32)
+            samples_array = np.hstack([samples_array, samples_array[:, -1:]]).astype(np.int32)
         # ===
         # samples_array = np.vstack(b.samples.tolist())
         blocks.append(
