@@ -24,6 +24,7 @@ from .hamiltonian import (
 from .popan import (
     batched_orthogonal_lowdin_population,
     batched_orthogonal_lowdinbyMO_population,
+    batched_orthogonal_lowdinallMO_population,
 )
 from .model_selection import train_test_split
 
@@ -67,6 +68,11 @@ class SCFData:
             ao_labels=self.ao_labels,
         )
         self.lowdin_charges_byMO, _ = batched_orthogonal_lowdinbyMO_population(
+            focks_orth=self.focks_orth,
+            nelec_dict=self.nelec_dict,
+            ao_labels=self.ao_labels,
+        )
+        self.lowdin_charges_allMO, _ = batched_orthogonal_lowdinallMO_population(
             focks_orth=self.focks_orth,
             nelec_dict=self.nelec_dict,
             ao_labels=self.ao_labels,

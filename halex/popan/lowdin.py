@@ -200,14 +200,14 @@ def batched_orthogonal_lowdinbyMO_population(
 
 
 def batched_orthogonal_lowdinallMO_population(
-    fock_orth: torch.Tensor,
+    focks_orth: torch.Tensor,
     nelec_dict: Dict[int, float],
     ao_labels: List[Tuple[int, Any]],
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Löwdin population analysis"""
-    eps, c_tilde = torch.linalg.eigh(fock_orth)
+    eps, c_tilde = torch.linalg.eigh(focks_orth)
 
-    n_frames, nmo, _ = fock_orth.shape
+    n_frames, _, nmo = focks_orth.shape
     n_elec = _get_n_elec(nelec_dict, ao_labels)
 
     pop = 2 * torch.einsum("fmi,fmi->fim", c_tilde, c_tilde.conj())

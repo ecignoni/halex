@@ -7,6 +7,7 @@ from .tmap_models import RidgeModel
 from ..popan import (
     batched_orthogonal_lowdin_population,
     batched_orthogonal_lowdinbyMO_population,
+    batched_orthogonal_lowdinallMO_population,
 )
 from ..popan.lowdin import _get_atom_charges
 from ..hamiltonian import blocks_to_dense, decouple_blocks
@@ -285,6 +286,85 @@ def _baselined_loss_eigenvalues_lowdinqbyMO_vectorized(
 
     # Lowdin charges per atom (summed over MOs)
     tot_pred_lowdinq = torch.sum(pred_lowdinq, dim=1) + _get_atom_charges(nelec_dict, ao_labels)
+
+    # TODO: Shouldn't this go before the previous call?
+    lowdinq, pred_lowdinq = _maybe_discard_some_mo_charges(
+        mo_indices, lowdinq, pred_lowdinq
+    )
+
+    # MSE loss on energies and charges
+    loss_eigvals = torch.mean((eigvals - pred_eigvals) ** 2)
+    loss_lowdinq = torch.mean((lowdinq - pred_lowdinq) ** 2)
+    loss_lowdinq_tot = torch.mean((tot_lowdinq - tot_pred_lowdinq) ** 2)
+
+    # weighted sum of the various loss contributions
+    return (
+        weight_eigvals * loss_eigvals
+        + weight_lowdinq * loss_lowdinq
+        + weight_regloss * regloss
+        + weight_lowdinq_tot * loss_lowdinq_tot,
+        loss_eigvals,
+        loss_lowdinq,
+        regloss,
+        loss_lowdinq_tot,
+    )
+
+def _baselined_loss_eigenvalues_lowdinqallMO_vectorized(
+    pred_blocks: TensorMap,
+    frames: List[Atoms],
+    eigvals: torch.Tensor,
+    lowdinq: torch.Tensor,
+    tot_lowdinq: torch.Tensor,
+    baseline_focks: torch.Tensor,
+    orbs: Dict[int, List],
+    ao_labels: List[int],
+    nelec_dict: Dict[str, float],
+    regloss: torch.Tensor,
+    weight_eigvals: float = 1.0,
+    weight_lowdinq: float = 1.0,
+    weight_lowdinq_tot: float = 1.0,
+    weight_regloss: float = 1.0,
+    mo_indices: np.ndarray = None,
+    **kwargs,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    r"""combined loss on MO energies and Lowdin charges
+
+    Computes a (regularized) combined loss on MO energies and
+    Lowdin charges.
+
+        L = w_eigvals * Σ_fr |pred_ε_fr - ε_fr|^2
+          + w_lowdinq * Σ_fa |pred_q_fa - q_fa|^2
+          + w_regular * L_regularization
+
+    Where f indexes the frame, r indexes the MO, a indexes the atom.
+    Every operation is vectorized (fast), so it only works for focks
+    that have the same dimension (e.g., for a single molecule).
+    """
+    # predict fock matrices as torch.Tensors
+    pred_focks = _predict_focks_vectorized(pred_blocks, frames=frames, orbs=orbs)
+
+    # sum to the baseline
+    pred_focks = baseline_focks + pred_focks
+
+    # MO energies
+    pred_eigvals = torch.linalg.eigvalsh(pred_focks)
+
+    # Lowdin charges, MO per MO
+    # This means they are not an array (n_atoms,), but a matrix
+    # (n_mo, n_atoms)
+    pred_lowdinq, _ = batched_orthogonal_lowdinallMO_population(
+        pred_focks,
+        nelec_dict,
+        ao_labels,
+    )
+
+    # Lowdin charges per atom (summed over MOs)
+    atom_charges = _get_atom_charges(nelec_dict, ao_labels)
+    # Bit of a hack: we get the number of occupied MOs from the 
+    # atomic numbers
+    nel = torch.sum(atom_charges)
+    nocc = (nel // 2).type(torch.int32).item()
+    tot_pred_lowdinq = torch.sum(pred_lowdinq[:, :nocc], dim=1) + _get_atom_charges(nelec_dict, ao_labels)
 
     # TODO: Shouldn't this go before the previous call?
     lowdinq, pred_lowdinq = _maybe_discard_some_mo_charges(
@@ -1180,3 +1260,43 @@ class BaselinedMultipleMoleculesByMO(BaselinedMultipleMolecules):
                     self.dump_state()
 
         return self
+
+class BaselinedMultipleMoleculesAllMO(BaselinedMultipleMoleculesByMO):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def loss_fn(
+        self,
+        pred_blocks: TensorMap,
+        frames: List[Atoms],
+        eigvals: torch.Tensor,
+        lowdinq: torch.Tensor,
+        tot_lowdinq: torch.Tensor,
+        baseline_focks: torch.Tensor,
+        orbs: Dict[int, List],
+        ao_labels: List[int],
+        nelec_dict: Dict[str, float],
+        weight_eigvals=1.5e6,
+        weight_lowdinq=1e6,
+        weight_regloss=1.0,
+        weight_lowdinq_tot=1e6,
+        **kwargs,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return _baselined_loss_eigenvalues_lowdinqallMO_vectorized(
+            pred_blocks=pred_blocks,
+            frames=frames,
+            eigvals=eigvals,
+            lowdinq=lowdinq,
+            tot_lowdinq=tot_lowdinq,
+            baseline_focks=baseline_focks,
+            orbs=orbs,
+            ao_labels=ao_labels,
+            nelec_dict=nelec_dict,
+            regloss=self.regloss_,
+            weight_eigvals=weight_eigvals,
+            weight_lowdinq=weight_lowdinq,
+            weight_regloss=weight_regloss,
+            weight_lowdinq_tot=weight_lowdinq_tot,
+            **kwargs,
+        )
+

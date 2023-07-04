@@ -482,6 +482,85 @@ def baselined_semiempirical_batched_dataset_byMO_for_a_single_molecule(
         )
 
 
+def baselined_semiempirical_batched_dataset_allMO_for_a_single_molecule(
+    scf_datasets: Tuple[SCFData, SCFData],
+    feats: List[TensorMap],
+    nelec_dict: Dict[str, float],
+    batch_size: int,
+    baseline_focks: torch.Tensor,
+    core_feats: List[TensorMap] = None,
+    lowdin_mo_indices=None,
+) -> BatchedMemoryDataset:
+    """
+    Create a BatchedMemoryDataset (which is what our models expect)
+
+    lowdin_charges_by_MO: whether to use total lowdin charges (False)
+                          or lowdin charges partitioned by MO (True)
+    core_feats: optional features used to learn the core elements of
+                the Fock matrix.
+    """
+    small_basis, big_basis = scf_datasets
+
+    frames = small_basis.frames
+
+    # Remove the core from the orbitals
+    # These orbitals are used to compute the population
+    # analysis (by the ML model)
+    orbs, _ = orbs_without_heavy_core(small_basis.orbs)
+
+    # Find the number of core AOs, and find the correct
+    # AO labels (core excluded)
+    ao_labels, ncore = ao_labels_without_heavy_core(small_basis.ao_labels)
+
+    # Now we have found ncore core AOs.
+    # Remove the first ncore MO energies (we don't want
+    # to predict the core energies)
+    mo_energy = big_basis.mo_energy[:, ncore:]
+
+    # Truncate the MO energies to the range that can
+    # be predicted by a small basis, pay attention to the
+    # number of core AOs 
+    small_basis_dim = small_basis.mo_energy[:, ncore:].shape[1]
+    mo_energy = mo_energy[:, :small_basis_dim]
+
+    # Careful: if the lowdin charges are MO by MO, you need
+    # to exclude the core MOs, otherwise (they are atom by atom)
+    # don't do anything
+    tot_lowdin_charges = big_basis.lowdin_charges
+    lowdin_charges = big_basis.lowdin_charges_allMO[:, ncore:ncore+small_basis_dim]
+
+    if core_feats is None:
+        return BatchedMemoryDataset(
+            len(frames),
+            feats,
+            frames,
+            mo_energy,
+            lowdin_charges,
+            tot_lowdin_charges,
+            baseline_focks,
+            ao_labels=ao_labels,
+            orbs=orbs,
+            nelec_dict=nelec_dict,
+            batch_size=batch_size,
+            lowdin_mo_indices=lowdin_mo_indices,
+        )
+    else:
+        return BatchedMemoryDataset(
+            len(frames),
+            feats,
+            core_feats,
+            frames,
+            mo_energy,
+            lowdin_charges,
+            tot_lowdin_charges,
+            baseline_focks,
+            ao_labels=ao_labels,
+            orbs=orbs,
+            nelec_dict=nelec_dict,
+            batch_size=batch_size,
+            lowdin_mo_indices=lowdin_mo_indices,
+        )
+
 def coupled_fock_matrix_from_multiple_molecules(
     multimol_scf_datasets: List[Tuple[SCFData, SCFData]],
 ) -> TensorMap:
