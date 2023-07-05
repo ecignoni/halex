@@ -121,13 +121,18 @@ class RidgeModel(torch.nn.Module):
     ) -> TensorMap:
         self.regloss_ = 0.0
         pred_blocks = []
+        pred_keys = []
         for key, components, model in zip(
             self.predict_keys, self.predict_components, self.models
         ):
             L = key["L"]
-            feat_block = self.get_feature_block(
-                features=features, key=key, core_features=core_features
-            )
+            try:
+                feat_block = self.get_feature_block(
+                    features=features, key=key, core_features=core_features
+                )
+            except ValueError:
+                print(f'skipping {key} in prediction')
+                continue
             x = feat_block.values
             nsamples, ncomps, nprops = x.shape
             x = x.reshape(nsamples * ncomps, nprops)
@@ -141,7 +146,9 @@ class RidgeModel(torch.nn.Module):
                 properties=self.predict_properties,
             )
             pred_blocks.append(pred_block)
-        pred_tmap = TensorMap(self.predict_keys, pred_blocks)
+            pred_keys.append(list(key))
+        pred_keys = Labels(self.predict_keys.names, values=np.array(pred_keys))
+        pred_tmap = TensorMap(pred_keys, pred_blocks)
         return pred_tmap
 
     def fit_ridge_analytical(
