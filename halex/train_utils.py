@@ -494,8 +494,6 @@ def baselined_semiempirical_batched_dataset_allMO_for_a_single_molecule(
     """
     Create a BatchedMemoryDataset (which is what our models expect)
 
-    lowdin_charges_by_MO: whether to use total lowdin charges (False)
-                          or lowdin charges partitioned by MO (True)
     core_feats: optional features used to learn the core elements of
                 the Fock matrix.
     """
@@ -528,6 +526,12 @@ def baselined_semiempirical_batched_dataset_allMO_for_a_single_molecule(
     # don't do anything
     tot_lowdin_charges = big_basis.lowdin_charges
     lowdin_charges = big_basis.lowdin_charges_allMO[:, ncore:ncore+small_basis_dim]
+
+    # If given, truncate the indices so as to exclude the core MOs
+    # before using them to select the lowdin charges
+    if lowdin_mo_indices is not None:
+        lowdin_mo_indices = lowdin_mo_indices[:-ncore]
+        # lowdin_charges = lowdin_charges[:, lowdin_mo_indices]
 
     if core_feats is None:
         return BatchedMemoryDataset(

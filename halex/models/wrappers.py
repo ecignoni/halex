@@ -366,7 +366,7 @@ def _baselined_loss_eigenvalues_lowdinqallMO_vectorized(
     nocc = (nel // 2).type(torch.int32).item()
     tot_pred_lowdinq = torch.sum(pred_lowdinq[:, :nocc], dim=1) + _get_atom_charges(nelec_dict, ao_labels)
 
-    # TODO: Shouldn't this go before the previous call?
+
     lowdinq, pred_lowdinq = _maybe_discard_some_mo_charges(
         mo_indices, lowdinq, pred_lowdinq
     )
