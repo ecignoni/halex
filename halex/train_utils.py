@@ -218,6 +218,54 @@ def batched_dataset_for_a_single_molecule(
         )
 
 
+def batched_dataset_allMO_for_a_single_molecule(
+    scf_datasets: Tuple[SCFData, SCFData],
+    feats: List[TensorMap],
+    nelec_dict: Dict[str, float],
+    batch_size: int,
+    core_feats: List[TensorMap] = None,
+    lowdin_mo_indices = None,
+) -> BatchedMemoryDataset:
+    small_basis, big_basis = scf_datasets
+
+    frames = small_basis.frames
+    orbs = small_basis.orbs
+    ao_labels = small_basis.ao_labels
+    small_basis_dim = small_basis.mo_energy.shape[1]
+    mo_energy = big_basis.mo_energy[:, :small_basis_dim]
+    tot_lowdin_charges = big_basis.lowdin_charges
+    lowdin_charges = big_basis.lowdin_charges_allMO[:, :small_basis_dim]
+
+    if core_feats is None:
+        return BatchedMemoryDataset(
+            len(frames),
+            feats,
+            frames,
+            mo_energy,
+            lowdin_charges,
+            tot_lowdin_charges,
+            ao_labels=ao_labels,
+            orbs=orbs,
+            nelec_dict=nelec_dict,
+            batch_size=batch_size,
+            lowdin_mo_indices=lowdin_mo_indices,
+        )
+    else:
+        return BatchedMemoryDataset(
+            len(frames),
+            feats,
+            core_feats,
+            frames,
+            mo_energy,
+            lowdin_charges,
+            tot_lowdin_charges,
+            ao_labels=ao_labels,
+            orbs=orbs,
+            nelec_dict=nelec_dict,
+            batch_size=batch_size,
+            lowdin_mo_indices=lowdin_mo_indices,
+        )
+
 def _number_of_heavy_elements(frame):
     return sum(frame.numbers != 1)
 
