@@ -128,9 +128,15 @@ class EquivariantPCA:
         iterator = (
             tqdm(tmap, desc="transforming each tensormap key") if self.verbose else tmap
         )
+        tmap_keys = []
         for key, block in iterator:
-            idx = self.keys_.index(key)
+            try:
+                idx = self.keys_.index(key)
+            except ValueError as e:
+                warnings.warn(str(e))
+                continue
 
+            tmap_keys.append(list(key))
             values = block.values.clone()
             nsamples, ncomps, nprops = values.shape
             values = values.reshape(nsamples * ncomps, nprops)
@@ -157,7 +163,9 @@ class EquivariantPCA:
 
             blocks.append(block)
 
-        return TensorMap(tmap.keys, blocks)
+        tmap_keys = Labels(names=tmap.keys.names, values=np.array(tmap_keys))
+
+        return TensorMap(tmap_keys, blocks)
 
     def inverse_transform(self, tmap):
         self._check_is_fitted()
