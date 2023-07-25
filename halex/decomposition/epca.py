@@ -133,7 +133,8 @@ class EquivariantPCA:
             try:
                 idx = self.keys_.index(key)
             except ValueError as e:
-                print(str(e))
+                if self.verbose:
+                    print(str(e))
                 continue
 
             tmap_keys.append(list(key))
