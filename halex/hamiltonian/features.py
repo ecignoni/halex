@@ -28,12 +28,14 @@ def hamiltonian_features(centers, pairs):
             )
         )
         # ===
-        #`Try to handle the case of no computed features
+        # `Try to handle the case of no computed features
         if len(b.samples.tolist()) == 0:
             samples_array = b.samples
         else:
             samples_array = np.vstack(b.samples.tolist())
-            samples_array = np.hstack([samples_array, samples_array[:, -1:]]).astype(np.int32)
+            samples_array = np.hstack([samples_array, samples_array[:, -1:]]).astype(
+                np.int32
+            )
         # ===
         # samples_array = np.vstack(b.samples.tolist())
         blocks.append(
@@ -123,7 +125,9 @@ def hamiltonian_features(centers, pairs):
     )
 
 
-def compute_ham_features(rascal_hypers, frames, cg, lcut, saveto=None, verbose=False, global_species=None):
+def compute_ham_features(
+    rascal_hypers, frames, cg, lcut, saveto=None, verbose=False, global_species=None
+):
     if verbose:
         print("Computing |rho_i>")
     spex = RascalSphericalExpansion(rascal_hypers)
@@ -221,65 +225,3 @@ def drop_noncore_features(feats: TensorMap) -> TensorMap:
             keys_to_drop.append(list(key))
     keys_to_drop = Labels(feats.keys.names, values=np.array(keys_to_drop))
     return equistore.drop_blocks(feats, keys=keys_to_drop)
-
-
-# if __name__ == "__main__":
-#     from utils.rotations import rotation_matrix, wigner_d_real
-#     from tqdm import tqdm
-#     from torch_utils import load_frames, load_orbs, load_hamiltonians, compute_ham_features
-#
-#     def test_rotation_equivariance_features():
-#         '''
-#         Equivariance test: f(ŜA) = Ŝ(f(A))
-#         Here the operation is a rotation in 3D space: Ŝ = R
-#         '''
-#         # rotation angles, ZYZ
-#         alpha = np.pi / 3
-#         beta = np.pi / 3
-#         gamma = np.pi / 4
-#
-#         n_frames = 1
-#         frames = load_frames(
-#             "../data/hamiltonian/water-hamiltonian/water_coords_1000.xyz",
-#             n_frames=n_frames,
-#         )
-#         orbs = load_orbs("../data/hamiltonian/water-hamiltonian/water_orbs.json")
-#         hams = load_hamiltonians(
-#             "../data/hamiltonian/water-hamiltonian/water_saph_orthogonal.npy",
-#             n_frames=n_frames,
-#         )
-#
-#         R = rotation_matrix(alpha, beta, gamma).T
-#
-#         cg = ClebschGordanReal(4)
-#
-#         rascal_hypers = {
-#             "interaction_cutoff": 3.5,
-#             "cutoff_smooth_width": 0.5,
-#             "max_radial": 1,
-#             "max_angular": 3,
-#             "gaussian_sigma_constant": 0.2,
-#             "gaussian_sigma_type": "Constant",
-#             "compute_gradients": False,
-#         }
-#
-#         for frame in frames:
-#             A = frame.copy()
-#             RA = frame.copy()
-#             RA.positions = RA.positions @ R
-#             RA.cell = RA.cell @ R
-#
-#             f_A = compute_ham_features(rascal_hypers, [A], cg)
-#             f_RA = compute_ham_features(rascal_hypers, [RA], cg)
-#
-#             for (key, block), (_, rotated_block) in zip(f_A, f_RA):
-#                 _, _, l, _, _, _ = key
-#                 D = wigner_d_real(int(l), alpha, beta, gamma)
-#                 rotated_values = np.einsum("nm,smp->snp", D, block.values)
-#                 diff = np.sum(abs(rotated_values) - abs(rotated_block.values))
-#
-#                 assert (
-#                     diff < 1e-17
-#                 ), f"mismatch for key={key}, sum of abs. differences: {diff}"
-#
-#     test_rotation_equivariance_features()

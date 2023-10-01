@@ -229,6 +229,13 @@ def get_feature_block(features: TensorMap, key: Labels) -> TensorBlock:
 def drop_target_samples(
     feats: TensorMap, targ_coupled: TensorMap, verbose: bool = False
 ) -> TensorMap:
+    """
+    Filters the target TensorMap (Fock matrix in the coupled basis)
+    samples Fock matrix in the coupled basis based on their presence
+    in the feature TensorMap.  It ensures that only the target samples
+    which correspond to existing feature samples are retained.
+    """
+
     blocks = []
     all_keys_matched = True
 
@@ -317,6 +324,7 @@ def load_cross_ovlps(path, frames, orbs_sb, orbs_bb, indices):
     )
     return cross_ovlps
 
+
 def orbs_without_heavy_core(orbs):
     "removes the core AOs from the orbitals for heavy elements (non-hydrogen)"
     new_orbs = defaultdict(list)
@@ -330,6 +338,7 @@ def orbs_without_heavy_core(orbs):
                 new_orbs[nelem].append(atorb)
     return new_orbs, ncore
 
+
 def ao_labels_without_heavy_core(ao_labels):
     "removes the core AOs from the AO labels for heavy elements (non-hydrogens)"
     # Find the number of core AOs, and find the correct
@@ -338,7 +347,7 @@ def ao_labels_without_heavy_core(ao_labels):
     ncore = 0
     for i, lbl in enumerate(ao_labels):
         _, atom, (n, l, m) = lbl
-        if atom != 'H' and n == 1 and l == 0:
+        if atom != "H" and n == 1 and l == 0:
             ncore += 1
         else:
             new_ao_labels.append(lbl)

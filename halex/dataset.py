@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Union, Tuple, Any
+from typing import Dict, List, Union, Tuple, Any, Callable
 
 import numpy as np
 import torch
@@ -81,19 +81,19 @@ class SCFData:
         self.atom_pure_symbols = self.frames[0].get_chemical_symbols()
         self.natm = len(self.atom_pure_symbols)
 
-
     def _drop_atomic_orbitals(self):
         if self.drop_atomic_orbitals is None:
             return
 
         # Get the indices of the atomic orbitals to drop
-        drop_idxs, self.ao_labels, self._orbs = self.drop_atomic_orbitals(self.ao_labels, self.orbs)
+        drop_idxs, self.ao_labels, self._orbs = self.drop_atomic_orbitals(
+            self.ao_labels, self.orbs
+        )
         # Here we need to touch the private fock and overlap matrices (they are a property)
         self._focks = np.delete(self._focks, drop_idxs, axis=1)
         self._focks = np.delete(self._focks, drop_idxs, axis=2)
         self._ovlps = np.delete(self._ovlps, drop_idxs, axis=1)
         self._ovlps = np.delete(self._ovlps, drop_idxs, axis=2)
-
 
     @property
     def frames(self):
@@ -365,8 +365,3 @@ class BatchedMemoryDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Tuple:
         return self.batches[idx]
-
-
-class LazyDataset(Dataset):
-    def __init__(self):
-        raise NotImplementedError
