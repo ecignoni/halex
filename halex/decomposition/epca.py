@@ -1,9 +1,9 @@
-import numpy as np
-import torch
-from tqdm import tqdm
 import warnings
 
-from equistore import Labels, TensorBlock, TensorMap
+import numpy as np
+import torch
+from metatensor import Labels, TensorBlock, TensorMap
+from tqdm import tqdm
 
 
 class EquivariantPCA:
@@ -64,7 +64,7 @@ class EquivariantPCA:
         retained_components_ = []
 
         iterator = (
-            tqdm(tmap, desc="fitting PCA on each tensormap key")
+            tqdm(tmap.items(), desc="fitting PCA on each tensormap key")
             if self.verbose
             else tmap
         )
@@ -92,7 +92,7 @@ class EquivariantPCA:
             # if n_components is too big, do not throw an error but
             # use all the available components
             else:
-                warnings.warn('n_components too big: retaining everything')
+                warnings.warn("n_components too big: retaining everything")
                 max_comp = min(nsamples * ncomps, nprops)
                 retained = torch.arange(max_comp)
 
@@ -100,7 +100,7 @@ class EquivariantPCA:
             eigs_ratio = eigs_ratio[retained]
             components = components[:, retained]
 
-            keys_.append(key)
+            keys_.append(tuple(key))
             mean_.append(mean)
             explained_variance_.append(eigs)
             explained_variance_ratio_.append(eigs_ratio)
@@ -126,12 +126,14 @@ class EquivariantPCA:
         blocks = []
 
         iterator = (
-            tqdm(tmap, desc="transforming each tensormap key") if self.verbose else tmap
+            tqdm(tmap.items(), desc="transforming each tensormap key")
+            if self.verbose
+            else tmap
         )
         tmap_keys = []
         for key, block in iterator:
             try:
-                idx = self.keys_.index(key)
+                idx = self.keys_.index(tuple(key))
             except ValueError as e:
                 if self.verbose:
                     print(str(e))
@@ -174,7 +176,7 @@ class EquivariantPCA:
         blocks = []
 
         iterator = (
-            tqdm(tmap, desc="transforming back each tensormap key")
+            tqdm(tmap.items(), desc="transforming back each tensormap key")
             if self.verbose
             else tmap
         )
@@ -226,7 +228,7 @@ class EquivariantPCA:
 
     def load(self, fname):
         saved = np.load(fname)
-        keys = [k for k in saved["keys"]]
+        keys = [tuple(k) for k in saved["keys"]]
         means = [saved[f"{key}_mean"] for key in keys]
         comps = [torch.from_numpy(saved[f"{key}_components"]) for key in keys]
         rets = [torch.from_numpy(saved[f"{key}_retained_components"]) for key in keys]
@@ -235,104 +237,3 @@ class EquivariantPCA:
         self.components_ = comps
         self.retained_components_ = rets
         return self
-
-
-# if __name__ == "__main__":
-#     from utils.rotations import rotation_matrix, wigner_d_real
-#     from torch_cg import ClebschGordanReal
-#     from torch_utils import (
-#         load_frames,
-#         load_orbs,
-#         load_hamiltonians,
-#         compute_ham_features,
-#         tensormap_as_torch,
-#     )
-#
-#     def compute_features():
-#         n_frames = 50
-#         frames = load_frames(
-#             "../data/hamiltonian/water-hamiltonian/water_coords_1000.xyz",
-#             n_frames=n_frames,
-#         )
-#         orbs = load_orbs("../data/hamiltonian/water-hamiltonian/water_orbs.json")
-#         hams = load_hamiltonians(
-#             "../data/hamiltonian/water-hamiltonian/water_saph_orthogonal.npy",
-#             n_frames=n_frames,
-#         )
-#
-#         cg = ClebschGordanReal(4)
-#
-#         rascal_hypers = {
-#             "interaction_cutoff": 3.5,
-#             "cutoff_smooth_width": 0.5,
-#             "max_radial": 8,
-#             "max_angular": 4,
-#             "gaussian_sigma_constant": 0.2,
-#             "gaussian_sigma_type": "Constant",
-#             "compute_gradients": False,
-#         }
-#
-#         feats = compute_ham_features(rascal_hypers, frames, cg)
-#         feats = tensormap_as_torch(feats)
-#
-#         return feats
-#
-#     def test_rotation_equivariance_pca():
-#         """
-#         Equivariance test: f(ŜA) = Ŝ(f(A))
-#         Here the operation is a rotation in 3D space: Ŝ = R
-#         """
-#         # rotation angles, ZYZ
-#         alpha = np.pi / 3
-#         beta = np.pi / 3
-#         gamma = np.pi / 4
-#         R = rotation_matrix(alpha, beta, gamma).T
-#
-#         feats = compute_features()
-#
-#         epca = EquivariantPCA(verbose=False).fit(feats)
-#
-#         alpha, beta, gamma = np.pi / 3, np.pi / 3, np.pi / 4
-#         R = rotation_matrix(alpha, beta, gamma).T
-#
-#         A = frames[0].copy()
-#         RA = frames[0].copy()
-#         RA.positions = RA.positions @ R
-#         RA.cell = RA.cell @ R
-#
-#         f_A_unprocessed = tensormap_as_torch(
-#             compute_ham_features(rascal_hypers, [A], cg)
-#         )
-#         f_RA_unprocessed = tensormap_as_torch(
-#             compute_ham_features(rascal_hypers, [RA], cg)
-#         )
-#
-#         f_A = epca.transform(f_A_unprocessed)
-#         f_RA = epca.transform(f_RA_unprocessed)
-#
-#         for (key, block), (_, rotated_block) in zip(f_A, f_RA):
-#             l = int(key["spherical_harmonics_l"])
-#             D = wigner_d_real(l, alpha, beta, gamma)
-#             values = block.values
-#             rotated_values = np.einsum("nm,smp->snp", D, values)
-#             norm = torch.linalg.norm(rotated_block.values - rotated_values)
-#             assert norm < 1e-17, f"mismatch for key={key}, norm = {norm}"
-#
-#     def test_inverse_transform():
-#         """
-#         Test if inverse transforming the pca reduced features
-#         gives the original features
-#         """
-#         feats = compute_features()
-#         epca = EquivariantPCA(n_components=None, verbose=False).fit(feats)
-#         T_feats = epca.transform(feats)
-#         rec_feats = epca.inverse_transform(T_feats)
-#
-#         for (key, block), (_, rec_block) in zip(feats, rec_feats):
-#             values = block.values
-#             rec_values = rec_block.values
-#             norm = torch.linalg.norm(values - rec_values)
-#             assert norm < 1e-17, f"mismatch for key={key}, norm = {norm}"
-#
-#     test_rotation_equivariance_pca()
-#     test_inverse_transform()

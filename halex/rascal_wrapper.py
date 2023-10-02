@@ -8,14 +8,16 @@ import warnings
 import ase
 from rascal.representations import SphericalExpansion
 
-from equistore import Labels, TensorBlock, TensorMap
+from metatensor import Labels, TensorBlock, TensorMap
 
 
 class RascalSphericalExpansion:
     def __init__(self, hypers):
         self._hypers = copy.deepcopy(hypers)
 
-    def compute(self, frames: List[ase.Atoms], global_species: List[int] = None) -> TensorMap:  # noqa: C901
+    def compute(
+        self, frames: List[ase.Atoms], global_species: List[int] = None
+    ) -> TensorMap:  # noqa: C901
         # Step 1: compute spherical expansion with librascal
         hypers = copy.deepcopy(self._hypers)
 
@@ -188,8 +190,10 @@ class RascalPairExpansion:
     def __init__(self, hypers):
         self._hypers = copy.deepcopy(hypers)
 
-    def compute(self, frames: List[ase.Atoms], global_species: List[int] = None) -> TensorMap:
-        # save here global_species under another name (same interface but used 
+    def compute(
+        self, frames: List[ase.Atoms], global_species: List[int] = None
+    ) -> TensorMap:
+        # save here global_species under another name (same interface but used
         # differently inside the function)
         all_species = global_species
 
@@ -291,10 +295,12 @@ class RascalPairExpansion:
                     [[a2, n] for n in range(hypers["max_radial"])], dtype=np.int32
                 ),
             )
+            # print(selected_samples.shape, samples.values[selected_samples])
+            # samples = Labels(samples.names, samples.values[selected_samples])
 
             block = TensorBlock(
                 values=np.copy(block_data),
-                samples=samples[selected_samples],
+                samples=Labels(samples.names, samples.values[selected_samples]),
                 components=[component],
                 properties=properties,
             )

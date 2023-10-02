@@ -1,32 +1,29 @@
 from __future__ import annotations
-from typing import Dict, List, Union, Tuple, Any, Callable
+
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import numpy as np
 import torch
+from metatensor import Labels, TensorMap
+from metatensor import operations as metop
 from torch.utils.data import Dataset
 
-from equistore import Labels, TensorMap
-from equistore import operations as eqop
-
-from .utils import (
-    load_frames,
-    load_orbs,
-    fix_pyscf_l1_orbs,
-    fix_pyscf_l1,
-    get_ao_labels,
-    atomic_number2symbol,
-)
+from .hamiltonian import couple_blocks, dense_to_blocks
+from .model_selection import train_test_split
 from .operations import lowdin_orthogonalize
-from .hamiltonian import (
-    couple_blocks,
-    dense_to_blocks,
-)
 from .popan import (
     batched_orthogonal_lowdin_population,
-    batched_orthogonal_lowdinbyMO_population,
     batched_orthogonal_lowdinallMO_population,
+    batched_orthogonal_lowdinbyMO_population,
 )
-from .model_selection import train_test_split
+from .utils import (
+    atomic_number2symbol,
+    fix_pyscf_l1,
+    fix_pyscf_l1_orbs,
+    get_ao_labels,
+    load_frames,
+    load_orbs,
+)
 
 
 class SCFData:
@@ -269,9 +266,10 @@ def slice_tensor(tensor: torch.Tensor, indices: np.ndarray) -> torch.Tensor:
 
 
 def slice_tmap(tmap: TensorMap, indices: np.ndarray) -> TensorMap:
-    return eqop.slice(
+    return metop.slice(
         tmap,
-        samples=Labels(
+        axis="samples",
+        labels=Labels(
             names=["structure"], values=np.atleast_1d(indices).reshape(-1, 1)
         ),
     )

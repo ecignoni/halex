@@ -1,6 +1,6 @@
 import numpy as np
 import re
-from equistore import Labels, TensorBlock, TensorMap
+from metatensor import Labels, TensorBlock, TensorMap
 from .rotations import ClebschGordanReal
 
 
@@ -26,7 +26,7 @@ def acdc_standardize_keys(descriptor):
         )
     blocks = []
     keys = []
-    for key, block in descriptor:
+    for key, block in descriptor.items():
         key = tuple(key)
         if "inversion_sigma" not in key_names:
             key = (1,) + key
@@ -41,17 +41,19 @@ def acdc_standardize_keys(descriptor):
                 components=block.components,
                 properties=Labels(
                     property_names,
-                    np.asarray(block.properties.view(dtype=np.int32)).reshape(
-                        -1, len(property_names)
-                    ),
+                    np.asarray(block.properties.values),
                 ),
             )
         )
 
     if "inversion_sigma" not in key_names:
-        key_names = ("inversion_sigma",) + key_names
+        key_names = [
+            "inversion_sigma",
+        ] + key_names
     if "order_nu" not in key_names:
-        key_names = ("order_nu",) + key_names
+        key_names = [
+            "order_nu",
+        ] + key_names
 
     return TensorMap(
         keys=Labels(names=key_names, values=np.asarray(keys, dtype=np.int32)),
@@ -140,7 +142,7 @@ def cg_combine(  # noqa: C901
     X_grads = {}
 
     # loops over sparse blocks of x_a
-    for index_a, block_a in x_a:
+    for index_a, block_a in x_a.items():
         lam_a = index_a["spherical_harmonics_l"]
         sigma_a = index_a["inversion_sigma"]
         order_a = index_a["order_nu"]
@@ -150,7 +152,7 @@ def cg_combine(  # noqa: C901
         samples_a = block_a.samples
 
         # and x_b
-        for index_b, block_b in x_b:
+        for index_b, block_b in x_b.items():
             lam_b = index_b["spherical_harmonics_l"]
             sigma_b = index_b["inversion_sigma"]
             order_b = index_b["order_nu"]
@@ -186,15 +188,17 @@ def cg_combine(  # noqa: C901
                 # ===========
                 # EDIT: we also try to handle the case of missing features (e.g., when you want to include atom species not present
                 # in the original frame, for which rascal gives an empty array)
-                if samples_b.shape[0] == 0:
+                if samples_b.values.shape[0] == 0:
                     neighbor_slice = slice(None)
                 # ===========
 
                 else:
                     neighbor_slice = []
                     smp_a, smp_b = 0, 0
-                    while smp_b < samples_b.shape[0]:
-                        if samples_b[smp_b][["structure", "center"]] != samples_a[smp_a]:
+                    while smp_b < samples_b.values.shape[0]:
+                        if np.all(
+                            samples_b.values[smp_b][:2] != samples_a.values[smp_a]
+                        ):
                             smp_a += 1
                         neighbor_slice.append(smp_a)
                         smp_b += 1
@@ -243,8 +247,12 @@ def cg_combine(  # noqa: C901
                     _as0 = block_a.values.shape[0]
                     if _bs0 == 0 and _as0 != 0:
                         _nsamples = len(block_b.samples.names)
-                        _newsamples = np.array([[-i for _ in range(_nsamples)] for i in range(_as0)])
-                        X_samples[KEY] = Labels(names=block_b.samples.names, values=_newsamples)
+                        _newsamples = np.array(
+                            [[-i for _ in range(_nsamples)] for i in range(_as0)]
+                        )
+                        X_samples[KEY] = Labels(
+                            names=block_b.samples.names, values=_newsamples
+                        )
                     else:
                         X_samples[KEY] = block_b.samples
                     # ===
@@ -380,68 +388,3 @@ def cg_increment(
         lcut=lcut,
         other_keys_match=other_keys_match,
     )
-
-
-def _matrix_sqrt(MMT):
-    eva, eve = np.linalg.eigh(MMT)
-    return (eve * np.sqrt(eva)) @ eve.T
-
-
-def compress_features(x, w=None, threshold=None):
-    new_blocks = []
-    new_idxs = []
-    new_A = []
-    for index, block in x:
-        nfeats = block.values.shape[-1]
-        L = index["spherical_harmonics_l"]
-
-        # makes a copy of the features
-        X = block.values.reshape(-1, nfeats).copy()
-        selection = []
-        while len(selection) < nfeats:
-            norm = (X**2).sum(axis=0)
-            sel_idx = norm.argmax()
-
-            if norm[sel_idx] / (2 * L + 1) / X.shape[0] < threshold:
-                break
-            sel_x = X[:, sel_idx] / np.sqrt(norm[sel_idx])
-            selection.append(sel_idx)
-
-            # orthogonalize
-            X -= sel_x.reshape(-1, 1) @ (sel_x @ X).reshape(1, -1)
-        selection.sort()
-        nsel = len(selection)
-        if nsel == 0:
-            continue
-        new_idxs.append(tuple(index))
-
-        Xt = block.values.reshape(-1, nfeats)[:, selection].copy()
-        if w is not None:
-            for i, s in enumerate(selection):
-                Xt[:, i] /= w.block(index).values[0, 0, s]
-
-        W = np.linalg.pinv(Xt) @ block.values.reshape(-1, nfeats)
-        WW = W @ W.T
-        A = _matrix_sqrt(WW)
-        Xt = Xt @ A
-        new_blocks.append(
-            TensorBlock(
-                values=Xt.reshape(block.values.shape[:2] + (-1,)),
-                samples=block.samples,
-                components=block.components,
-                properties=block.properties[selection],
-            )
-        )
-        new_A.append(
-            TensorBlock(
-                values=A.T.reshape(1, nsel, nsel),
-                components=[
-                    Labels(["q_comp"], np.arange(nsel, dtype=np.int32).reshape(-1, 1))
-                ],
-                samples=Labels(["dummy"], np.zeros(shape=(1, 1), dtype=np.int32)),
-                properties=block.properties[selection],
-            )
-        )
-        new_sparse = Labels(x.keys.names, np.asarray(new_idxs, dtype=np.int32))
-
-    return TensorMap(new_sparse, new_blocks), TensorMap(new_sparse, new_A)

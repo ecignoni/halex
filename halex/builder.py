@@ -1,5 +1,5 @@
 import numpy as np
-from equistore import Labels, TensorBlock, TensorMap
+from metatensor import Labels, TensorBlock, TensorMap
 import torch
 
 
@@ -125,9 +125,9 @@ class TensorBuilderPerSamples:
 
     def add_samples(self, labels, data, gradient=None):
         assert isinstance(data, np.ndarray) or isinstance(data, torch.Tensor)
-        assert data.shape[-1] == self._properties.shape[0]
+        assert data.shape[-1] == self._properties.values.shape[0]
         for i in range(len(self._components)):
-            assert data.shape[i + 1] == self._components[i].shape[0]
+            assert data.shape[i + 1] == self._components[i].values.shape[0]
 
         labels = np.asarray(labels, dtype=np.int32)
 

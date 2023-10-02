@@ -8,8 +8,8 @@ import ase.io
 import torch
 from collections import defaultdict
 
-import equistore
-from equistore import Labels, TensorBlock, TensorMap
+import metatensor
+from metatensor import Labels, TensorBlock, TensorMap
 
 
 # very exhaustive list
@@ -142,7 +142,7 @@ def load_dict(path):
 
 def _convert_tensormap_dtype(tmap, convert_dtype_fn):
     blocks = []
-    for _, block in tmap:
+    for _, block in tmap.items():
         values = convert_dtype_fn(block.values)
         block = TensorBlock(
             values=values,
@@ -239,9 +239,9 @@ def drop_target_samples(
     blocks = []
     all_keys_matched = True
 
-    for key, block in targ_coupled:
-        feat_samples = get_feature_block(feats, key).samples.asarray().copy()
-        targ_samples = block.samples.asarray().copy()
+    for key, block in targ_coupled.items():
+        feat_samples = get_feature_block(feats, key).samples.values.copy()
+        targ_samples = block.samples.values.copy()
         # find samples in common between the two TensorMaps
         idx_common = (targ_samples[:, None] == feat_samples).all(-1).any(-1)
 

@@ -1,15 +1,13 @@
 from __future__ import annotations
-from typing import Dict
 
 import os
 from collections import defaultdict
+from typing import Dict
 
 import numpy as np
 import torch
-
+from metatensor import Labels, TensorBlock, TensorMap
 from sklearn.linear_model import Ridge
-
-from equistore import Labels, TensorBlock, TensorMap
 
 from .block_models import RidgeBlockModel
 
@@ -89,7 +87,7 @@ class RidgeModel(torch.nn.Module):
         components = []
         properties = Labels(["values"], np.asarray([[0]], dtype=np.int32))
         models = []
-        for key, block in coupled_tmap:
+        for key, block in coupled_tmap.items():
             nsamples, ncomps, nprops = self.get_feature_block(
                 features=features, key=key, core_features=core_features
             ).values.shape
@@ -98,7 +96,7 @@ class RidgeModel(torch.nn.Module):
                 in_features=nprops, out_features=1, bias=self.bias, alpha=self.alpha
             )
             models.append(module)
-        self.predict_keys = coupled_tmap.keys.copy()
+        self.predict_keys = coupled_tmap.keys
         self.predict_components = components
         self.predict_properties = properties
         self.models = torch.nn.ModuleList(models)
@@ -131,7 +129,7 @@ class RidgeModel(torch.nn.Module):
                     features=features, key=key, core_features=core_features
                 )
             except ValueError:
-                print(f'skipping {key} in prediction')
+                print(f"skipping {key} in prediction")
                 continue
             x = feat_block.values
             nsamples, ncomps, nprops = x.shape

@@ -1,28 +1,26 @@
 from __future__ import annotations
 
-import os
 import gc
+import os
 
+import metatensor
 import numpy as np
-
 import torch
-import equistore
 
-from halex.rotations import ClebschGordanReal
 from halex.decomposition import EquivariantPCA
 from halex.models import RidgeOnEnergiesAndLowdinMultipleMolecules  # ByMO
-from halex.utils import drop_target_samples
-
+from halex.rotations import ClebschGordanReal
 from halex.train_utils import (
-    load_molecule_scf_datasets,
     compute_features,
-    load_batched_dataset,
     coupled_fock_matrix_from_multiple_molecules,
+    load_batched_dataset,
+    load_molecule_scf_datasets,
 )
+from halex.utils import drop_target_samples
 
 torch.set_default_dtype(torch.float64)
 
-ROOT_DIR = "/scratch/suman/"
+ROOT_DIR = "/Users/divya/scratch/"
 
 
 def load_molecule_datasets(mol: str, cg: ClebschGordanReal, indices: np.ndarray):
@@ -96,7 +94,7 @@ if __name__ == "__main__":
     feats = compute_features(datasets, rascal_hypers=rascal_hypers, cg=cg, lcut=2)
     gc.collect()
 
-    epca = EquivariantPCA(n_components=200).fit(equistore.join(feats, axis="samples"))
+    epca = EquivariantPCA(n_components=200).fit(metatensor.join(feats, axis="samples"))
 
     feats = [epca.transform(feats_) for feats_ in feats]
     gc.collect()
@@ -142,7 +140,7 @@ if __name__ == "__main__":
 
     targ_coupled = coupled_fock_matrix_from_multiple_molecules(datasets.values())
     targ_coupled = drop_target_samples(
-        equistore.join(feats, axis="samples"), targ_coupled, verbose=True
+        metatensor.join(feats, axis="samples"), targ_coupled, verbose=True
     )
 
     # ==================================================================
@@ -151,14 +149,14 @@ if __name__ == "__main__":
 
     model = RidgeOnEnergiesAndLowdinMultipleMolecules(
         coupled_tmap=targ_coupled,
-        features=equistore.join(feats, axis="samples"),
+        features=metatensor.join(feats, axis="samples"),
         alpha=1e-14,
         dump_dir="train_output",
         bias=False,
     )
 
     model.fit_ridge_analytical(
-        features=equistore.join(feats, axis="samples"),
+        features=metatensor.join(feats, axis="samples"),
         targets=targ_coupled,
     )
 

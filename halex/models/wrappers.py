@@ -12,7 +12,7 @@ import torch
 
 from tqdm import tqdm
 
-from equistore import TensorMap
+from metatensor import TensorMap
 
 Atoms = Any
 Dataset = Any
@@ -57,8 +57,7 @@ def _loss_focks_vectorized(
     pred_focks = _predict_focks_vectorized(pred_blocks, frames=frames, orbs=orbs)
     loss_focks = torch.mean((focks - pred_focks) ** 2)
 
-    return (weight_focks * loss_focks 
-            + weight_regloss * regloss, regloss)
+    return (weight_focks * loss_focks + weight_regloss * regloss, regloss)
 
 
 def _loss_eigenvalues_vectorized(
@@ -95,8 +94,7 @@ def _loss_eigenvalues_vectorized(
 
     # weighted sum of the various loss contributions
     return (
-        weight_eigvals * loss_eigvals 
-        + weight_regloss * regloss,
+        weight_eigvals * loss_eigvals + weight_regloss * regloss,
         loss_eigvals,
         regloss,
     )
@@ -205,7 +203,7 @@ class RidgeOnFocksMultipleMolecules(RidgeModel):
     """
     A model that predicts the Fock matrix in the coupled basis
     and then converts it to uncoupled dense matrix and computes
-    the loss on it and backpropagates it via gradient descent 
+    the loss on it and backpropagates it via gradient descent
     to optimize the model.
     """
 
@@ -557,7 +555,7 @@ class RidgeOnEnergiesMultipleMolecules(RidgeModel):
                     self.dump_state()
 
         return self
-        
+
 
 class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
     """

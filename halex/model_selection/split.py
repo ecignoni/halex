@@ -1,6 +1,6 @@
 import numpy as np
-import equistore
-from equistore import operations as eqop
+import metatensor
+from metatensor import operations as eqop
 
 
 def train_test_split(*elements, n_frames, train_size=0.8):

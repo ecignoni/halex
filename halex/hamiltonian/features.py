@@ -1,9 +1,9 @@
 from ..rascal_wrapper import RascalSphericalExpansion, RascalPairExpansion
 from ..acdc_mini import acdc_standardize_keys, cg_increment
 
-import equistore
-from equistore import Labels, TensorBlock, TensorMap
-from equistore.io import save as equisave
+import metatensor
+from metatensor import Labels, TensorBlock, TensorMap
+from metatensor import save
 import numpy as np
 
 
@@ -19,7 +19,7 @@ def hamiltonian_features(centers, pairs):
     keys = []
     blocks = []
     # central blocks
-    for k, b in centers:
+    for k, b in centers.items():
         keys.append(
             tuple(k)
             + (  # noqa: W503
@@ -29,10 +29,10 @@ def hamiltonian_features(centers, pairs):
         )
         # ===
         # `Try to handle the case of no computed features
-        if len(b.samples.tolist()) == 0:
-            samples_array = b.samples
+        if len(b.samples.values) == 0:
+            samples_array = b.samples.values
         else:
-            samples_array = np.vstack(b.samples.tolist())
+            samples_array = np.vstack(b.samples.values)
             samples_array = np.hstack([samples_array, samples_array[:, -1:]]).astype(
                 np.int32
             )
@@ -41,7 +41,10 @@ def hamiltonian_features(centers, pairs):
         blocks.append(
             TensorBlock(
                 samples=Labels(
-                    names=b.samples.names + ("neighbor",),
+                    names=b.samples.names
+                    + [
+                        "neighbor",
+                    ],
                     values=samples_array,
                     # values=np.asarray(
                     #     np.hstack([samples_array, samples_array[:, -1:]]),
@@ -54,7 +57,7 @@ def hamiltonian_features(centers, pairs):
             )
         )
 
-    for k, b in pairs:
+    for k, b in pairs.items():
         if k["species_center"] == k["species_neighbor"]:
             # off-site, same species
             idx_up = np.where(b.samples["center"] < b.samples["neighbor"])[0]
@@ -66,15 +69,19 @@ def hamiltonian_features(centers, pairs):
             # we exploit the fact that the samples are sorted by structure to do a "local" rearrangement
             smp_up, smp_lo = 0, 0
             for smp_up in range(len(idx_up)):
-                ij = b.samples[idx_up[smp_up]][["center", "neighbor"]]
+                ij = b.samples.view(["center", "neighbor"]).values[idx_up[smp_up]]
                 for smp_lo in range(smp_up, len(idx_lo)):
-                    ij_lo = b.samples[idx_lo[smp_lo]][["neighbor", "center"]]
+                    ij_lo = b.samples.view(["neighbor", "center"]).values[
+                        idx_lo[smp_lo]
+                    ]
                     if (
-                        b.samples[idx_up[smp_up]]["structure"]
-                        != b.samples[idx_lo[smp_lo]]["structure"]  # noqa: W503
+                        b.samples.view(["structure"]).values[idx_up[smp_up]]
+                        != b.samples.view(["structure"]).values[
+                            idx_lo[smp_lo]
+                        ]  # noqa: W503
                     ):
                         raise ValueError(
-                            f"Could not find matching ji term for sample {b.samples[idx_up[smp_up]]}"
+                            f"Could not find matching ji term for sample {b.samples.values[idx_up[smp_up]]}"
                         )
                     if tuple(ij) == tuple(ij_lo):
                         idx_lo[smp_up], idx_lo[smp_lo] = idx_lo[smp_lo], idx_lo[smp_up]
@@ -86,7 +93,7 @@ def hamiltonian_features(centers, pairs):
                 TensorBlock(
                     samples=Labels(
                         names=b.samples.names,
-                        values=np.asarray(b.samples[idx_up].tolist(), dtype=np.int32),
+                        values=b.samples.values[idx_up],
                     ),
                     components=b.components,
                     properties=b.properties,
@@ -97,7 +104,7 @@ def hamiltonian_features(centers, pairs):
                 TensorBlock(
                     samples=Labels(
                         names=b.samples.names,
-                        values=np.asarray(b.samples[idx_up].tolist(), dtype=np.int32),
+                        values=b.samples.values[idx_up],
                     ),
                     components=b.components,
                     properties=b.properties,
@@ -118,7 +125,10 @@ def hamiltonian_features(centers, pairs):
 
     return TensorMap(
         keys=Labels(
-            names=pairs.keys.names + ("block_type",),
+            names=pairs.keys.names
+            + [
+                "block_type",
+            ],
             values=np.asarray(keys, dtype=np.int32),
         ),
         blocks=blocks,
@@ -162,7 +172,7 @@ def compute_ham_features(
     if saveto is not None:
         if verbose:
             print(f"Saving to {saveto}")
-        equisave(saveto, ham_feats)
+        save(saveto, ham_feats)
 
     return ham_feats
 
@@ -171,7 +181,7 @@ def drop_unused_features(feats, targs_coupled):
     retained_keys = []
     retained_blocks = []
 
-    for targ_key, _ in targs_coupled:
+    for targ_key, _ in targs_coupled.items():
         block_type = targ_key["block_type"]
         ai = targ_key["a_i"]
         li = targ_key["l_i"]
@@ -180,7 +190,7 @@ def drop_unused_features(feats, targs_coupled):
         L = targ_key["L"]
         inversion_sigma = (-1) ** (li + lj + L)
 
-        for feat_key, feat_block in feats:
+        for feat_key, feat_block in feats.items():
             cond_block = feat_key["block_type"] == block_type
             cond_l = feat_key["spherical_harmonics_l"] == L
             cond_sigma = feat_key["inversion_sigma"] == inversion_sigma

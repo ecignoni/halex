@@ -1,10 +1,9 @@
-from .tensormap_dense import _components_idx
-from ..builder import TensorBuilder
-from ..rotations import ClebschGordanReal
-
 import numpy as np
 import torch
 
+from ..builder import TensorBuilder
+from ..rotations import ClebschGordanReal
+from .tensormap_dense import _components_idx
 
 # ===================================================================
 # Clebsch Gordan Coupling / Decoupling
@@ -22,7 +21,7 @@ def couple_blocks(blocks, cg=None):
         [["M"]],
         ["value"],
     )
-    for idx, block in blocks:
+    for idx, block in blocks.items():
         block_type, ai, ni, li, aj, nj, lj = tuple(idx)
 
         # Moves the components at the end as cg.couple assumes so
@@ -51,9 +50,7 @@ def couple_blocks(blocks, cg=None):
             )
 
             new_block.add_samples(
-                labels=block.samples.view(dtype=np.int32).reshape(
-                    block.samples.shape[0], -1
-                ),
+                labels=block.samples.values,
                 data=torch.moveaxis(coupled[L], -1, -2),
             )
 
@@ -72,11 +69,11 @@ def decouple_blocks(blocks, cg=None):
         # this is because, e.g. for multiple molecules, we
         # may have an additional sample name indexing the
         # molecule id
-        blocks.sample_names,
+        blocks.samples_names,
         [["m1"], ["m2"]],
         ["value"],
     )
-    for idx, block in blocks:
+    for idx, block in blocks.items():
         block_type, ai, ni, li, aj, nj, lj, L = tuple(idx)
         block_idx = (block_type, ai, ni, li, aj, nj, lj)
         if block_idx in block_builder.blocks:
@@ -94,9 +91,7 @@ def decouple_blocks(blocks, cg=None):
             components=[_components_idx(li), _components_idx(lj)],
         )
         new_block.add_samples(
-            labels=block.samples.view(dtype=np.int32).reshape(
-                block.samples.shape[0], -1
-            ),
+            labels=block.samples.values,
             data=torch.moveaxis(decoupled, 1, -1),
         )
     return block_builder.build()

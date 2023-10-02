@@ -5,8 +5,8 @@ import os
 import numpy as np
 from tqdm import tqdm
 
-import equistore
-from equistore import TensorMap
+import metatensor
+from metatensor import TensorMap
 
 from .decomposition import EquivariantPCA
 from .rotations import ClebschGordanReal
@@ -269,7 +269,7 @@ def coupled_fock_matrix_from_multiple_molecules(
             to_couple.append(fock)
             # to_couple.append(shift_structure_by_n(smallb.focks_orth_tmap_coupled, n=n))
             # n += smallb.n_frames
-        fock_coupled = equistore.join(to_couple, axis="samples")
+        fock_coupled = metatensor.join(to_couple, axis="samples")
     else:
         fock_coupled = list(multimol_scf_datasets)[0][0].focks_orth_tmap_coupled
     return fock_coupled

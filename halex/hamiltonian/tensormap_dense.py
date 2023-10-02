@@ -6,7 +6,7 @@ from ..builder import TensorBuilder
 import numpy as np
 import torch
 
-from equistore import Labels, TensorMap, TensorBlock
+from metatensor import Labels, TensorMap, TensorBlock
 
 Atoms = Any
 
@@ -52,15 +52,21 @@ def _atom_blocks_idx(frames, orbs_tot):
 
 def dense_to_blocks(dense, frames, orbs):  # noqa: C901
     """
-    Converts a list of dense matrices `dense` corresponding to the single-particle Hamiltonians for the structures
-    described by `frames`, and using the orbitals described in the dictionary `orbs` into a TensorMap storage format.
+    Converts a list of dense matrices `dense` corresponding to
+    the single-particle Hamiltonians for the structures described
+    by `frames`, and using the orbitals described in the dictionary
+    `orbs` into a TensorMap storage format.
 
     The label convention is as follows:
 
-    The keys that label the blocks are ["block_type", "a_i", "n_i", "l_i", "a_j", "n_j", "l_j"].
+    The keys that label the blocks are ["block_type",
+    "a_i", "n_i", "l_i", "a_j", "n_j", "l_j"].
     block_type: 0 -> diagonal blocks, atom i=j
-                2 -> different species block, stores only when n_i,l_i and n_j,l_j are lexicographically sorted
-                1,-1 -> same specie, off-diagonal. store separately symmetric (1) and anti-symmetric (-1) term
+                2 -> different species block, stores
+                only when n_i,l_i and n_j,l_j are
+                     lexicographically sorted
+                1,-1 -> same specie, off-diagonal. store
+                        separately symmetric (1) and anti-symmetric (-1) term
     a_{i,j}: chemical species (atomic number) of the two atoms
     n_{i,j}: radial channel
     l_{i,j}: angular momentum
@@ -377,7 +383,7 @@ def _vectorized_blocks_to_dense(
     SLICES_CACHE = {}
 
     # loops over block types
-    for idx, block in blocks:
+    for idx, block in blocks.items():
         # I can't loop over the frames directly, so I'll keep track
         # of the frame with these two variables
         dense_idx = -1
@@ -504,7 +510,7 @@ def _get_slices_cached(
     block_idx: Labels,
     slices_cache: Dict,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    key = (ki_base, kj_base, ki_offset, kj_offset, li, lj, block_idx)
+    key = (ki_base, kj_base, ki_offset, kj_offset, li, lj, tuple(block_idx))
     # try to get the cached slices
     slices = slices_cache.get(key, None)
 
