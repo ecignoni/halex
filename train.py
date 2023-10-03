@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import gc
-import os
 
 import metatensor
 import numpy as np
@@ -20,20 +19,15 @@ from halex.utils import drop_target_samples
 
 torch.set_default_dtype(torch.float64)
 
-ROOT_DIR = "/Users/divya/scratch/"
-
 
 def load_molecule_datasets(mol: str, cg: ClebschGordanReal, indices: np.ndarray):
     """
     Load the SCFData objects storing data for a single molecule,
     in both a small basis and a big basis
     """
-    coords_path = os.path.join(ROOT_DIR, f"CH-dataset/{mol}/coords_{mol}_1000.xyz")
-    small_basis_path = os.path.join(ROOT_DIR, f"CH-dataset/{mol}/b3lyp_STO-3G/")
-    big_basis_path = os.path.join(
-        ROOT_DIR,
-        f"CH-dataset/{mol}/b3lyp_def2tzvp/",
-    )
+    coords_path = f"CH-dataset/{mol}/coords_{mol}_1000.xyz"
+    small_basis_path = f"CH-dataset/{mol}/b3lyp_STO-3G/"
+    big_basis_path = f"CH-dataset/{mol}/b3lyp_def2tzvp/"
 
     sb_data, bb_data = load_molecule_scf_datasets(
         coords_path=coords_path,
