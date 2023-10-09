@@ -729,7 +729,7 @@ class RidgeOnEnergiesAndLowdinMultipleMolecules(RidgeModel):
 
             if valid_datasets is not None:
                 valid_losses = self._validation_step(valid_datasets, loss_kwargs)
-                losses |= valid_losses
+                losses.update(valid_losses)
 
             # average loss over batches and molecules
             with torch.no_grad():
