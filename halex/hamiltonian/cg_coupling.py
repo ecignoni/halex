@@ -69,7 +69,7 @@ def decouple_blocks(blocks, cg=None):
         # this is because, e.g. for multiple molecules, we
         # may have an additional sample name indexing the
         # molecule id
-        blocks.samples_names,
+        blocks.sample_names,
         [["m1"], ["m2"]],
         ["value"],
     )

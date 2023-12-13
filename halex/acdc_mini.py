@@ -19,13 +19,19 @@ def _remove_suffix(names, new_suffix=""):
 def acdc_standardize_keys(descriptor):
     """Standardize the naming scheme of density expansion coefficient blocks (nu=1)"""
 
-    key_names = descriptor.keys.names
+    key_names = np.array(descriptor.keys.names)
     if "spherical_harmonics_l" not in key_names:
         raise ValueError(
             "Descriptor missing spherical harmonics channel key `spherical_harmonics_l`"
         )
+    if "species_atom_1" in key_names:
+        key_names[np.where(key_names == "species_atom_1")[0]] = "species_center"
+    if "species_atom_2" in key_names:
+        key_names[np.where(key_names == "species_atom_2")[0]] = "species_neighbor"
+    key_names = tuple(key_names)
     blocks = []
     keys = []
+
     for key, block in descriptor.items():
         key = tuple(key)
         if "inversion_sigma" not in key_names:
@@ -34,31 +40,106 @@ def acdc_standardize_keys(descriptor):
             key = (1,) + key
         keys.append(key)
         property_names = _remove_suffix(block.properties.names, "_1")
+        sample_names = [
+            "center" if b == "first_atom" else ("neighbor" if b == "second_atom" else b)
+            for b in block.samples.names
+        ]
+
+        new_samples = Labels(
+            sample_names, block.samples.values
+        )
         blocks.append(
             TensorBlock(
                 values=block.values,
-                samples=block.samples,
+                samples=new_samples,
                 components=block.components,
-                properties=Labels(
-                    property_names,
-                    np.asarray(block.properties.values),
-                ),
+                properties=Labels(property_names, block.properties.values),
             )
         )
 
     if "inversion_sigma" not in key_names:
-        key_names = [
-            "inversion_sigma",
-        ] + key_names
+        key_names = ("inversion_sigma",) + key_names
     if "order_nu" not in key_names:
-        key_names = [
-            "order_nu",
-        ] + key_names
+        key_names = ("order_nu",) + key_names
 
     return TensorMap(
         keys=Labels(names=key_names, values=np.asarray(keys, dtype=np.int32)),
         blocks=blocks,
     )
+
+
+def add_prop_gij(pairs):
+    """
+    creates a copy of center_2 in properties for pair centred descriptor
+    """
+    blocks = []
+    for key, block in pairs.items():
+        species_2 = key[4]
+        pvals = block.properties.values
+        property_names = ["species_neighbor"] + block.properties.names
+        property_values = np.concatenate(
+            (np.array([[species_2]] * len(pvals)), pvals), axis=1
+        )
+
+        blocks.append(
+            TensorBlock(
+                values=block.values,
+                samples=block.samples,
+                components=block.components,
+                properties=Labels(property_names, property_values),
+            )
+        )
+    return TensorMap(pairs.keys, blocks)
+
+
+def fix_gij(pairs):
+    """
+    creates the missing self center samples for spherical harmonics l>0.
+    This is needed because rascaline does not compute them since they are
+    zero.
+    """
+    blocks = []
+    for key, block in pairs.items():
+        if key["spherical_harmonics_l"] == 0:
+            bsamples = block.samples
+            blocks.append(
+                TensorBlock(
+                    values=block.values,
+                    samples=block.samples,
+                    components=block.components,
+                    properties=block.properties,
+                )
+            )
+        else:
+            bvalues = np.zeros(
+                (bsamples.values.shape[0], block.values.shape[1], block.values.shape[2])
+            )
+            m = 0
+            w = 0
+            for n, sample in enumerate(bsamples):
+                if (
+                    sample["cell_shift_a"] == 0
+                    and sample["cell_shift_b"] == 0
+                    and sample["cell_shift_c"] == 0
+                ):
+                    bvalues[m + w] = np.zeros(
+                        (block.values.shape[1], block.values.shape[2])
+                    )
+                    w += 1
+                else:
+                    bvalues[m + w] = block.values[m]
+                    m += 1
+
+            blocks.append(
+                TensorBlock(
+                    values=bvalues,
+                    samples=bsamples,
+                    components=block.components,
+                    properties=block.properties,
+                )
+            )
+
+    return TensorMap(pairs.keys, blocks)
 
 
 def cg_combine(  # noqa: C901
@@ -196,10 +277,9 @@ def cg_combine(  # noqa: C901
                     neighbor_slice = []
                     smp_a, smp_b = 0, 0
                     while smp_b < samples_b.values.shape[0]:
-                        if np.all(
-                            samples_b.values[smp_b][:2] != samples_a.values[smp_a]
-                        ):
-                            smp_a += 1
+                        if (samples_b[smp_b]["structure"], samples_b[smp_b]["center"]) != (samples_a[smp_a]["structure"], samples_a[smp_a]["center"]):
+                            if smp_a + 1 < samples_a.values.shape[0]:
+                                smp_a += 1
                         neighbor_slice.append(smp_a)
                         smp_b += 1
                     neighbor_slice = np.asarray(neighbor_slice)
@@ -247,12 +327,8 @@ def cg_combine(  # noqa: C901
                     _as0 = block_a.values.shape[0]
                     if _bs0 == 0 and _as0 != 0:
                         _nsamples = len(block_b.samples.names)
-                        _newsamples = np.array(
-                            [[-i for _ in range(_nsamples)] for i in range(_as0)]
-                        )
-                        X_samples[KEY] = Labels(
-                            names=block_b.samples.names, values=_newsamples
-                        )
+                        _newsamples = np.array([[-i for _ in range(_nsamples)] for i in range(_as0)])
+                        X_samples[KEY] = Labels(names=block_b.samples.names, values=_newsamples)
                     else:
                         X_samples[KEY] = block_b.samples
                     # ===
