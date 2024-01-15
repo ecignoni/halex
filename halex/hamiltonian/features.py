@@ -1,4 +1,4 @@
-from rascaline import SphericalExpansion, SphericalExpansionByPair
+from ..rascal_wrapper import RascalSphericalExpansion, RascalPairExpansion
 from ..acdc_mini import acdc_standardize_keys, cg_increment, fix_gij, add_prop_gij
 
 import metatensor
@@ -135,33 +135,21 @@ def hamiltonian_features(centers, pairs):
         blocks=blocks,
     )
 
-
-def compute_ham_features(
-    rascal_hypers, frames, cg, lcut, saveto=None, verbose=False, global_species=None
-):
+def compute_ham_features(rascal_hypers, frames, cg, lcut, saveto=None, verbose=False, global_species=None):
     if verbose:
         print("Computing |rho_i>")
-    spex = SphericalExpansion(**rascal_hypers)
-    rhoi = spex.compute(frames)
+    spex = RascalSphericalExpansion(rascal_hypers)
+    rhoi = spex.compute(frames, global_species=global_species)
 
     if verbose:
         print("Computing |g_ij>")
-    pairs = SphericalExpansionByPair(**rascal_hypers)
-    gij = pairs.compute(frames)
+    pairs = RascalPairExpansion(rascal_hypers)
+    gij = pairs.compute(frames, global_species=global_species)
 
     # make them compatible for cg increments...
     rho1i = acdc_standardize_keys(rhoi)
     rho1i = rho1i.keys_to_properties(["species_neighbor"])
     gij = acdc_standardize_keys(gij)
-    gij = fix_gij(gij)
-    gij = add_prop_gij(gij)
-    gij = sort(gij, axes="all")
-
-    sample_names = ["cell_shift_a", "cell_shift_b", "cell_shift_c"]
-    for name in sample_names:
-        gij = metatensor.remove_dimension(
-            gij, axis="samples", name=name
-        )  # drop cell shifts from the samples since we are not working in PBC
 
     if verbose:
         print("Computing |rho^2_i>")
@@ -182,9 +170,10 @@ def compute_ham_features(
     if saveto is not None:
         if verbose:
             print(f"Saving to {saveto}")
-        save(saveto, ham_feats)
+        equisave(saveto, ham_feats)
 
     return ham_feats
+
 
 
 def drop_unused_features(feats, targs_coupled):
