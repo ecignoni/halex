@@ -32,8 +32,6 @@ def acdc_standardize_keys(descriptor):
     blocks = []
     keys = []
 
-    print(type(descriptor))
-
     for key, block in descriptor.items():
         key = tuple(key)
         if "inversion_sigma" not in key_names:
